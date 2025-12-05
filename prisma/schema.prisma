@@ -1,0 +1,474 @@
+// QuietDen: Vouch - Prisma Schema
+// Social accountability game with peer-to-peer UPI payouts
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ============================================
+// USER & AUTH
+// ============================================
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  emailVerified DateTime?
+  name          String?
+  image         String?   // Required by NextAuth adapter
+  username      String?   @unique
+  password      String?   // hashed, for email/password auth
+  avatarUrl     String?
+  bio           String?
+  upiId         String?   // e.g., user@upi
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Auth relations
+  accounts Account[]
+  sessions Session[]
+
+  // Profile stats (1:1)
+  profileStats ProfileStats?
+
+  // Friendships
+  friendRequestsSent     Friendship[] @relation("FriendRequester")
+  friendRequestsReceived Friendship[] @relation("FriendReceiver")
+
+  // Groups
+  createdGroups    Group[]           @relation("GroupCreator")
+  groupMemberships GroupMembership[]
+  joinRequests     JoinRequest[]
+
+  // Rules
+  createdRules Rule[] @relation("RuleCreator")
+  ruleApprovals RuleApproval[]
+
+  // Proofs
+  proofs Proof[]
+
+  // Chat
+  sentMessages ChatMessage[]
+  dmThreadsA   DmThread[]    @relation("DmUserA")
+  dmThreadsB   DmThread[]    @relation("DmUserB")
+
+  // Calls & Voting
+  ruleVotes RuleVote[] @relation("Voter")
+  votesReceived RuleVote[] @relation("VoteTarget")
+
+  // Payments
+  paymentsOwed     PaymentObligation[] @relation("Payer")
+  paymentsReceived PaymentObligation[] @relation("Payee")
+
+  // Notifications
+  notifications Notification[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model ProfileStats {
+  id                  String @id @default(cuid())
+  userId              String @unique
+  totalEarned         Int    @default(0) // in paise
+  totalPaid           Int    @default(0) // in paise
+  groupsCompleted     Int    @default(0)
+  groupsStarted       Int    @default(0)
+  trustScore          Float  @default(50) // 0-100
+  rulesCreatedCount   Int    @default(0)
+  rulesCompletedCount Int    @default(0)
+  longestStreak       Int    @default(0)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ============================================
+// SOCIAL / FRIENDSHIPS
+// ============================================
+
+enum FriendshipStatus {
+  PENDING
+  ACCEPTED
+  BLOCKED
+}
+
+model Friendship {
+  id          String           @id @default(cuid())
+  requesterId String
+  receiverId  String
+  status      FriendshipStatus @default(PENDING)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  requester User @relation("FriendRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  receiver  User @relation("FriendReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@unique([requesterId, receiverId])
+}
+
+// ============================================
+// GROUPS
+// ============================================
+
+enum GroupStatus {
+  PLANNING
+  ACTIVE
+  COMPLETED
+}
+
+enum GroupVisibility {
+  PUBLIC
+  FRIENDS_ONLY
+  PRIVATE
+}
+
+model Group {
+  id            String          @id @default(cuid())
+  name          String
+  slug          String          @unique
+  inviteCode    String          @unique @default(cuid())
+  description   String?
+  durationDays  Int             @default(3)
+  startDate     DateTime?
+  endDate       DateTime?
+  status        GroupStatus     @default(PLANNING)
+  visibility    GroupVisibility @default(PUBLIC)
+  isOpenToJoin  Boolean         @default(true)
+  createdByUserId String
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  creator     User              @relation("GroupCreator", fields: [createdByUserId], references: [id])
+  memberships GroupMembership[]
+  rules       Rule[]
+  proofs      Proof[]
+  chatMessages ChatMessage[]
+  callSessions CallSession[]
+  paymentObligations PaymentObligation[]
+  joinRequests JoinRequest[]
+}
+
+enum MemberRole {
+  CREATOR
+  MEMBER
+}
+
+model GroupMembership {
+  id       String     @id @default(cuid())
+  groupId  String
+  userId   String
+  role     MemberRole @default(MEMBER)
+  isReady  Boolean    @default(false) // ready to start the group
+  joinedAt DateTime   @default(now())
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+}
+
+// ============================================
+// JOIN REQUESTS
+// ============================================
+
+enum JoinRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model JoinRequest {
+  id        String            @id @default(cuid())
+  groupId   String
+  userId    String
+  ruleId    String            @unique // the rule they're pitching
+  status    JoinRequestStatus @default(PENDING)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rule  Rule  @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+}
+
+// ============================================
+// RULES
+// ============================================
+
+model Rule {
+  id           String   @id @default(cuid())
+  groupId      String
+  creatorId    String
+  title        String   // short title of the rule
+  description  String   // detailed description
+  stakeAmount  Int      // in paise (e.g., 50000 = ₹500)
+  approved     Boolean  @default(false) // becomes true when creator approves join request
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  group       Group          @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  creator     User           @relation("RuleCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  approvals   RuleApproval[]
+  proofLinks  ProofRuleLink[]
+  votes       RuleVote[]
+  obligations PaymentObligation[]
+  joinRequest JoinRequest?
+}
+
+model RuleApproval {
+  id         String   @id @default(cuid())
+  ruleId     String
+  approverId String
+  approved   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  rule     Rule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  approver User @relation(fields: [approverId], references: [id], onDelete: Cascade)
+
+  @@unique([ruleId, approverId])
+}
+
+// ============================================
+// PROOFS
+// ============================================
+
+enum MediaType {
+  IMAGE
+  VIDEO
+  AUDIO
+  TEXT
+  LINK
+}
+
+model Proof {
+  id         String    @id @default(cuid())
+  groupId    String
+  uploaderId String
+  dayIndex   Int       // 1..durationDays
+  caption    String?
+  mediaType  MediaType @default(TEXT)
+  mediaUrl   String?   // nullable for text-only proofs
+  textContent String?  // for TEXT type proofs
+  isPublic   Boolean   @default(true) // show on profile
+  isStory    Boolean   @default(false) // 24h ephemeral story
+  expiresAt  DateTime? // when story expires (null for regular proofs)
+  createdAt  DateTime  @default(now())
+
+  group    Group           @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  uploader User            @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
+  ruleLinks ProofRuleLink[]
+  reactions ProofReaction[]
+}
+
+model ProofRuleLink {
+  id      String @id @default(cuid())
+  proofId String
+  ruleId  String
+
+  proof Proof @relation(fields: [proofId], references: [id], onDelete: Cascade)
+  rule  Rule  @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@unique([proofId, ruleId])
+}
+
+model ProofReaction {
+  id        String   @id @default(cuid())
+  proofId   String
+  userId    String
+  emoji     String   // 🔥, 👏, 💀, etc.
+  createdAt DateTime @default(now())
+
+  proof Proof @relation(fields: [proofId], references: [id], onDelete: Cascade)
+
+  @@unique([proofId, userId])
+}
+
+// ============================================
+// CHAT & MESSAGING
+// ============================================
+
+enum MessageType {
+  TEXT
+  MEDIA
+  SYSTEM
+}
+
+model ChatMessage {
+  id         String      @id @default(cuid())
+  groupId    String?     // for group chat
+  dmThreadId String?     // for DMs
+  senderId   String
+  content    String
+  mediaUrl   String?
+  type       MessageType @default(TEXT)
+  createdAt  DateTime    @default(now())
+
+  group    Group?    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  dmThread DmThread? @relation(fields: [dmThreadId], references: [id], onDelete: Cascade)
+  sender   User      @relation(fields: [senderId], references: [id], onDelete: Cascade)
+}
+
+model DmThread {
+  id        String   @id @default(cuid())
+  userAId   String
+  userBId   String
+  createdAt DateTime @default(now())
+
+  userA    User          @relation("DmUserA", fields: [userAId], references: [id], onDelete: Cascade)
+  userB    User          @relation("DmUserB", fields: [userBId], references: [id], onDelete: Cascade)
+  messages ChatMessage[]
+
+  @@unique([userAId, userBId])
+}
+
+// ============================================
+// CALLS & VOTING
+// ============================================
+
+enum CallStatus {
+  SCHEDULED
+  ONGOING
+  COMPLETED
+  CANCELLED
+}
+
+model CallSession {
+  id          String     @id @default(cuid())
+  groupId     String
+  scheduledAt DateTime?
+  startedAt   DateTime?
+  endedAt     DateTime?
+  status      CallStatus @default(SCHEDULED)
+  createdAt   DateTime   @default(now())
+
+  group       Group               @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  votes       RuleVote[]
+  obligations PaymentObligation[]
+}
+
+enum VoteValue {
+  YES
+  NO
+  SKIP
+}
+
+model RuleVote {
+  id            String    @id @default(cuid())
+  callSessionId String
+  voterId       String
+  targetUserId  String
+  ruleId        String
+  value         VoteValue
+  createdAt     DateTime  @default(now())
+
+  callSession CallSession @relation(fields: [callSessionId], references: [id], onDelete: Cascade)
+  voter       User        @relation("Voter", fields: [voterId], references: [id], onDelete: Cascade)
+  targetUser  User        @relation("VoteTarget", fields: [targetUserId], references: [id], onDelete: Cascade)
+  rule        Rule        @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@unique([callSessionId, ruleId, voterId, targetUserId])
+}
+
+// ============================================
+// PAYMENTS
+// ============================================
+
+enum PaymentStatus {
+  PENDING
+  MARKED_PAID
+  CONFIRMED
+  DISPUTED
+}
+
+model PaymentObligation {
+  id            String        @id @default(cuid())
+  groupId       String
+  ruleId        String
+  callSessionId String?       // the call session where this was created
+  fromUserId    String        // payer
+  toUserId      String        // recipient
+  amount        Int           // in paise
+  status        PaymentStatus @default(PENDING)
+  settledAt     DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  group       Group        @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  rule        Rule         @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  callSession CallSession? @relation(fields: [callSessionId], references: [id], onDelete: SetNull)
+  fromUser    User         @relation("Payer", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUser      User         @relation("Payee", fields: [toUserId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, ruleId, fromUserId, toUserId])
+}
+
+// ============================================
+// NOTIFICATIONS
+// ============================================
+
+enum NotificationType {
+  FRIEND_REQUEST
+  FRIEND_ACCEPTED
+  GROUP_INVITE
+  JOIN_REQUEST
+  JOIN_APPROVED
+  JOIN_REJECTED
+  PROOF_REACTION
+  CALL_STARTED
+  CALL_REMINDER
+  PAYMENT_RECEIVED
+  PAYMENT_DUE
+  GROUP_STARTED
+  CYCLE_ENDED
+  OTHER
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  message   String?
+  data      Json?            // additional context
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}

@@ -1,0 +1,86 @@
+import { NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
+import prisma from "@/lib/db";
+
+// GET /api/messages/groups - Get group chats for the user
+export async function GET() {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Get groups where user is a member
+    const memberships = await prisma.groupMembership.findMany({
+      where: { userId: session.user.id },
+      include: {
+        group: {
+          include: {
+            memberships: {
+              include: {
+                user: {
+                  select: {
+                    avatarUrl: true,
+                  },
+                },
+              },
+              take: 4,
+            },
+            chatMessages: {
+              orderBy: { createdAt: "desc" },
+              take: 1,
+              include: {
+                sender: {
+                  select: { name: true },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    interface ChatMessage {
+      content: string;
+      sender: { name: string | null };
+      createdAt: Date;
+    }
+    
+    interface MembershipUser {
+      user: { avatarUrl: string | null };
+    }
+    
+    interface GroupWithDetails {
+      group: {
+        id: string;
+        name: string;
+        chatMessages: ChatMessage[];
+        memberships: MembershipUser[];
+      };
+    }
+
+    const groupChats = (memberships as GroupWithDetails[]).map((m) => ({
+      id: m.group.id,
+      name: m.group.name,
+      lastMessage: m.group.chatMessages[0]
+        ? {
+            content: m.group.chatMessages[0].content,
+            senderName: m.group.chatMessages[0].sender.name,
+            createdAt: m.group.chatMessages[0].createdAt,
+          }
+        : null,
+      unreadCount: 0, // TODO: implement unread count
+      memberAvatars: m.group.memberships
+        .map((mem) => mem.user.avatarUrl)
+        .filter(Boolean) as string[],
+    }));
+
+    return NextResponse.json(groupChats);
+  } catch (error) {
+    console.error("Error fetching group chats:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch group chats" },
+      { status: 500 }
+    );
+  }
+}
