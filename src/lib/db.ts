@@ -1,10 +1,16 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaLibSql } from "@prisma/adapter-libsql";
-import path from "path";
 
 // Determine database URL and config
 const getDatabaseConfig = () => {
-  // Production: Use Turso URL from environment
+  // Production: Use Turso
+  if (process.env.TURSO_DATABASE_URL) {
+    return {
+      url: process.env.TURSO_DATABASE_URL,
+      authToken: process.env.TURSO_AUTH_TOKEN,
+    };
+  }
+  // Fallback: DATABASE_URL 
   if (process.env.DATABASE_URL?.startsWith("libsql://")) {
     return {
       url: process.env.DATABASE_URL,
@@ -12,8 +18,7 @@ const getDatabaseConfig = () => {
     };
   }
   // Development: Use local SQLite file
-  const dbPath = path.join(process.cwd(), "prisma", "dev.db");
-  return { url: `file:${dbPath}` };
+  return { url: "file:./prisma/dev.db" };
 };
 
 const dbConfig = getDatabaseConfig();
