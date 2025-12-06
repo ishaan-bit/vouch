@@ -6,13 +6,14 @@ interface RouteParams {
   params: Promise<{ username: string }>;
 }
 
-// GET /api/users/[username] - Get user profile by username
+// GET /api/users/[username] - Get user profile by username or ID
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const session = await auth();
     const { username } = await params;
 
-    const user = await prisma.user.findUnique({
+    // Try to find user by username first, then by ID
+    let user = await prisma.user.findUnique({
       where: { username },
       select: {
         id: true,
@@ -31,6 +32,29 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         },
       },
     });
+
+    // If not found by username, try by ID (for users without usernames)
+    if (!user) {
+      user = await prisma.user.findUnique({
+        where: { id: username },
+        select: {
+          id: true,
+          name: true,
+          username: true,
+          avatarUrl: true,
+          bio: true,
+          createdAt: true,
+          profileStats: {
+            select: {
+              groupsCompleted: true,
+              trustScore: true,
+              rulesCreatedCount: true,
+              rulesCompletedCount: true,
+            },
+          },
+        },
+      });
+    }
 
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });

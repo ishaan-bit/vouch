@@ -230,7 +230,7 @@ export function ProfileContent({ user, friends, isOwnProfile }: ProfileContentPr
         {/* Settings button */}
         {isOwnProfile && (
           <div className="absolute top-4 right-4 flex gap-2">
-            <Link href="/settings">
+            <Link href="/profile/edit">
               <Button size="icon" variant="ghost" className="bg-white/10 backdrop-blur-sm text-white hover:bg-white/20 rounded-full">
                 <Settings className="h-5 w-5" />
               </Button>

@@ -5,7 +5,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import {
   Video,
@@ -19,6 +18,8 @@ import {
   ArrowRight,
   Wallet,
   ExternalLink,
+  X,
+  XCircle,
 } from "lucide-react";
 import { buildUpiUri } from "@/lib/upi";
 
@@ -57,14 +58,18 @@ interface Obligation {
   group: { id: string; name: string | null };
 }
 
+type VoteValue = "PENDING" | "YES" | "NO";
+
 export function ReviewCall({ groupId, groupName, currentUserId }: ReviewCallProps) {
   const queryClient = useQueryClient();
   const router = useRouter();
   
   // State for the voting phase
   const [currentRuleIndex, setCurrentRuleIndex] = useState(0);
-  const [votesMap, setVotesMap] = useState<Map<string, Set<string>>>(new Map()); // ruleId -> Set of memberIds who followed
+  // votesMap: ruleId -> Map<memberId, VoteValue> - explicit YES/NO selection required
+  const [votesMap, setVotesMap] = useState<Map<string, Map<string, VoteValue>>>(new Map());
   const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
 
   // Fetch active call
   const { data: call, isLoading: callLoading } = useQuery({
@@ -155,14 +160,18 @@ export function ReviewCall({ groupId, groupName, currentUserId }: ReviewCallProp
 
       // For each of my rules, create votes for all members
       for (const rule of myRules) {
-        const followedSet = votesMap.get(rule.id) || new Set();
+        const memberVotes = votesMap.get(rule.id);
         
         for (const member of otherMembers) {
-          votes.push({
-            ruleId: rule.id,
-            targetUserId: member.id,
-            value: followedSet.has(member.id) ? "YES" : "NO",
-          });
+          const vote = memberVotes?.get(member.id);
+          // Only include explicit YES/NO votes, skip PENDING
+          if (vote && vote !== "PENDING") {
+            votes.push({
+              ruleId: rule.id,
+              targetUserId: member.id,
+              value: vote,
+            });
+          }
         }
       }
 
@@ -184,6 +193,7 @@ export function ReviewCall({ groupId, groupName, currentUserId }: ReviewCallProp
     },
     onSuccess: () => {
       setHasSubmitted(true);
+      setShowConfirmation(false);
       toast.success("Your vouches have been recorded!");
       queryClient.invalidateQueries({ queryKey: ["call", groupId] });
       queryClient.invalidateQueries({ queryKey: ["obligations", call?.id] });
@@ -283,20 +293,58 @@ export function ReviewCall({ groupId, groupName, currentUserId }: ReviewCallProp
 
   const formatAmount = (paise: number) => `₹${(paise / 100).toLocaleString("en-IN")}`;
 
-  const toggleMemberVote = (ruleId: string, memberId: string) => {
+  // Set explicit YES or NO vote for a member on a rule
+  const setMemberVote = (ruleId: string, memberId: string, value: VoteValue) => {
     setVotesMap((prev) => {
       const newMap = new Map(prev);
-      const currentSet = newMap.get(ruleId) || new Set();
-      const newSet = new Set(currentSet);
+      const currentRuleVotes = newMap.get(ruleId) || new Map<string, VoteValue>();
+      const newRuleVotes = new Map(currentRuleVotes);
       
-      if (newSet.has(memberId)) {
-        newSet.delete(memberId);
-      } else {
-        newSet.add(memberId);
-      }
-      
-      newMap.set(ruleId, newSet);
+      newRuleVotes.set(memberId, value);
+      newMap.set(ruleId, newRuleVotes);
       return newMap;
+    });
+  };
+
+  // Get vote value for a member on a rule
+  const getMemberVote = (ruleId: string, memberId: string): VoteValue => {
+    return votesMap.get(ruleId)?.get(memberId) || "PENDING";
+  };
+
+  // Check if all members have been voted on for the current rule
+  const isCurrentRuleComplete = () => {
+    if (!currentRule) return false;
+    const ruleVotes = votesMap.get(currentRule.id);
+    if (!ruleVotes) return false;
+    
+    return otherMembers.every((member) => {
+      const vote = ruleVotes.get(member.id);
+      return vote === "YES" || vote === "NO";
+    });
+  };
+
+  // Check if all rules have complete votes
+  const areAllVotesComplete = () => {
+    return myRules.every((rule) => {
+      const ruleVotes = votesMap.get(rule.id);
+      if (!ruleVotes) return false;
+      
+      return otherMembers.every((member) => {
+        const vote = ruleVotes.get(member.id);
+        return vote === "YES" || vote === "NO";
+      });
+    });
+  };
+
+  // Get summary of votes for confirmation
+  const getVoteSummary = () => {
+    return myRules.map((rule) => {
+      const ruleVotes = votesMap.get(rule.id);
+      const memberVotes = otherMembers.map((member) => ({
+        member,
+        vote: ruleVotes?.get(member.id) || "PENDING",
+      }));
+      return { rule, memberVotes };
     });
   };
 
@@ -600,7 +648,7 @@ export function ReviewCall({ groupId, groupName, currentUserId }: ReviewCallProp
         </div>
         <h3 className="text-xl font-semibold text-white mb-2">No Rules to Vote On</h3>
         <p className="text-slate-400 mb-6">
-          You don't have any rules in this group. Wait for others to complete their voting.
+          You don&apos;t have any rules in this group. Wait for others to complete their voting.
         </p>
         <Button
           onClick={() => setHasSubmitted(true)}
@@ -608,6 +656,64 @@ export function ReviewCall({ groupId, groupName, currentUserId }: ReviewCallProp
         >
           View Settlement Summary
         </Button>
+      </div>
+    );
+  }
+
+  // Confirmation dialog
+  if (showConfirmation) {
+    const voteSummary = getVoteSummary();
+    return (
+      <div className="space-y-4">
+        <div className="p-5 rounded-3xl bg-slate-900/50 border border-amber-500/30">
+          <h3 className="text-lg font-semibold text-white mb-2">Confirm Your Votes</h3>
+          <p className="text-sm text-amber-400 mb-4">
+            Please review your votes before submitting. This action cannot be undone.
+          </p>
+          
+          <div className="space-y-4 max-h-80 overflow-y-auto">
+            {voteSummary.map(({ rule, memberVotes }) => (
+              <div key={rule.id} className="p-3 rounded-xl bg-slate-800/50 border border-slate-700/50">
+                <div className="flex items-center gap-2 mb-2">
+                  <Coins className="h-4 w-4 text-amber-400" />
+                  <span className="font-medium text-white">{rule.title}</span>
+                </div>
+                <div className="space-y-1">
+                  {memberVotes.map(({ member, vote }) => (
+                    <div key={member.id} className="flex items-center justify-between text-sm">
+                      <span className="text-slate-300">{member.name}</span>
+                      <span className={vote === "YES" ? "text-emerald-400" : "text-red-400"}>
+                        {vote === "YES" ? "✓ Followed" : "✗ Did not follow"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex gap-3">
+          <Button
+            onClick={() => setShowConfirmation(false)}
+            variant="outline"
+            className="flex-1 border-slate-700 text-slate-300 hover:bg-slate-800 rounded-xl"
+          >
+            Go Back
+          </Button>
+          <Button
+            onClick={() => submitVotesMutation.mutate()}
+            disabled={submitVotesMutation.isPending}
+            className="flex-1 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 text-white border-0 rounded-xl"
+          >
+            {submitVotesMutation.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+            ) : (
+              <Check className="h-4 w-4 mr-2" />
+            )}
+            Confirm & Submit
+          </Button>
+        </div>
       </div>
     );
   }
@@ -655,43 +761,67 @@ export function ReviewCall({ groupId, groupName, currentUserId }: ReviewCallProp
 
           {/* Voting prompt */}
           <div className="mb-4">
-            <p className="text-sm text-slate-300 mb-3">
-              Who actually followed this rule for the entire pact?
+            <p className="text-sm text-slate-300 mb-1">
+              Did each member follow this rule for the entire pact?
+            </p>
+            <p className="text-xs text-amber-400">
+              You must vote YES or NO for each member to continue.
             </p>
           </div>
 
-          {/* Member checkboxes */}
-          <div className="space-y-2">
+          {/* Member voting - explicit YES/NO buttons */}
+          <div className="space-y-3">
             {otherMembers.map((member) => {
-              const isChecked = votesMap.get(currentRule.id)?.has(member.id) || false;
+              const vote = getMemberVote(currentRule.id, member.id);
               return (
-                <button
+                <div
                   key={member.id}
-                  onClick={() => toggleMemberVote(currentRule.id, member.id)}
-                  className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${
-                    isChecked
-                      ? "bg-emerald-500/20 border border-emerald-500/30"
-                      : "bg-slate-800/50 border border-slate-700/50 hover:border-slate-600"
+                  className={`p-3 rounded-xl transition-all ${
+                    vote === "PENDING"
+                      ? "bg-slate-800/50 border border-slate-700/50"
+                      : vote === "YES"
+                      ? "bg-emerald-500/10 border border-emerald-500/30"
+                      : "bg-red-500/10 border border-red-500/30"
                   }`}
                 >
-                  <Checkbox
-                    checked={isChecked}
-                    onCheckedChange={() => toggleMemberVote(currentRule.id, member.id)}
-                    className="border-slate-600 data-[state=checked]:bg-emerald-500 data-[state=checked]:border-emerald-500"
-                  />
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage src={member.avatarUrl || undefined} />
-                    <AvatarFallback className="bg-violet-500/20 text-violet-300 text-xs">
-                      {getInitials(member.name)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <span className={`font-medium ${isChecked ? "text-emerald-300" : "text-white"}`}>
-                    {member.name}
-                  </span>
-                  {isChecked && (
-                    <CheckCircle2 className="h-4 w-4 text-emerald-400 ml-auto" />
-                  )}
-                </button>
+                  <div className="flex items-center gap-3 mb-2">
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src={member.avatarUrl || undefined} />
+                      <AvatarFallback className="bg-violet-500/20 text-violet-300 text-xs">
+                        {getInitials(member.name)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="font-medium text-white flex-1">{member.name}</span>
+                    {vote === "YES" && <CheckCircle2 className="h-5 w-5 text-emerald-400" />}
+                    {vote === "NO" && <XCircle className="h-5 w-5 text-red-400" />}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() => setMemberVote(currentRule.id, member.id, "YES")}
+                      size="sm"
+                      className={`flex-1 rounded-lg transition-all ${
+                        vote === "YES"
+                          ? "bg-emerald-500 text-white hover:bg-emerald-600"
+                          : "bg-slate-700/50 text-slate-300 hover:bg-emerald-500/20 hover:text-emerald-300"
+                      }`}
+                    >
+                      <Check className="h-4 w-4 mr-1" />
+                      Yes, followed
+                    </Button>
+                    <Button
+                      onClick={() => setMemberVote(currentRule.id, member.id, "NO")}
+                      size="sm"
+                      className={`flex-1 rounded-lg transition-all ${
+                        vote === "NO"
+                          ? "bg-red-500 text-white hover:bg-red-600"
+                          : "bg-slate-700/50 text-slate-300 hover:bg-red-500/20 hover:text-red-300"
+                      }`}
+                    >
+                      <X className="h-4 w-4 mr-1" />
+                      No, didn&apos;t follow
+                    </Button>
+                  </div>
+                </div>
               );
             })}
           </div>
@@ -713,23 +843,40 @@ export function ReviewCall({ groupId, groupName, currentUserId }: ReviewCallProp
         {currentRuleIndex < myRules.length - 1 ? (
           <Button
             onClick={handleNextRule}
-            className="flex-1 bg-violet-500/20 text-violet-300 hover:bg-violet-500/30 border-0 rounded-xl"
+            disabled={!isCurrentRuleComplete()}
+            className={`flex-1 rounded-xl ${
+              isCurrentRuleComplete()
+                ? "bg-violet-500/20 text-violet-300 hover:bg-violet-500/30"
+                : "bg-slate-700/50 text-slate-500 cursor-not-allowed"
+            }`}
           >
-            Next Rule
-            <ArrowRight className="h-4 w-4 ml-2" />
+            {isCurrentRuleComplete() ? (
+              <>
+                Next Rule
+                <ArrowRight className="h-4 w-4 ml-2" />
+              </>
+            ) : (
+              "Vote on all members to continue"
+            )}
           </Button>
         ) : (
           <Button
-            onClick={() => submitVotesMutation.mutate()}
-            disabled={submitVotesMutation.isPending}
-            className="flex-1 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 text-white border-0 rounded-xl"
+            onClick={() => setShowConfirmation(true)}
+            disabled={!areAllVotesComplete()}
+            className={`flex-1 rounded-xl ${
+              areAllVotesComplete()
+                ? "bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 text-white"
+                : "bg-slate-700/50 text-slate-500 cursor-not-allowed"
+            }`}
           >
-            {submitVotesMutation.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+            {areAllVotesComplete() ? (
+              <>
+                <Check className="h-4 w-4 mr-2" />
+                Review & Submit
+              </>
             ) : (
-              <Check className="h-4 w-4 mr-2" />
+              "Vote on all members to continue"
             )}
-            Submit Vouches
           </Button>
         )}
       </div>

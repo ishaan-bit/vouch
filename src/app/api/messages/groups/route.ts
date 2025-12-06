@@ -15,11 +15,15 @@ export async function GET() {
       where: { userId: session.user.id },
       include: {
         group: {
-          include: {
+          select: {
+            id: true,
+            name: true,
+            status: true,
             memberships: {
               include: {
                 user: {
                   select: {
+                    name: true,
                     avatarUrl: true,
                   },
                 },
@@ -47,13 +51,14 @@ export async function GET() {
     }
     
     interface MembershipUser {
-      user: { avatarUrl: string | null };
+      user: { name: string | null; avatarUrl: string | null };
     }
     
     interface GroupWithDetails {
       group: {
         id: string;
         name: string;
+        status: string;
         chatMessages: ChatMessage[];
         memberships: MembershipUser[];
       };
@@ -62,17 +67,21 @@ export async function GET() {
     const groupChats = (memberships as GroupWithDetails[]).map((m) => ({
       id: m.group.id,
       name: m.group.name,
+      status: m.group.status,
       lastMessage: m.group.chatMessages[0]
         ? {
             content: m.group.chatMessages[0].content,
-            senderName: m.group.chatMessages[0].sender.name,
+            senderName: m.group.chatMessages[0].sender.name || "Unknown",
             createdAt: m.group.chatMessages[0].createdAt,
           }
         : null,
       unreadCount: 0, // TODO: implement unread count
       memberAvatars: m.group.memberships
         .map((mem) => mem.user.avatarUrl)
-        .filter(Boolean) as string[],
+        .filter((url): url is string => url !== null),
+      memberNames: m.group.memberships
+        .map((mem) => mem.user.name)
+        .filter((name): name is string => name !== null),
       updatedAt: m.group.chatMessages[0]?.createdAt || new Date(0),
     }));
 
