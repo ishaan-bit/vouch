@@ -138,10 +138,9 @@ export async function GET(request: NextRequest) {
           },
         },
       },
-      orderBy: { createdAt: "desc" },
     });
 
-    // Transform to show the other user
+    // Transform and sort by most recent message
     const transformed = threads.map((thread: any) => {
       const otherUser =
         thread.userAId === session.user.id ? thread.userB : thread.userA;
@@ -149,7 +148,16 @@ export async function GET(request: NextRequest) {
         id: thread.id,
         otherUser,
         lastMessage: thread.messages[0] || null,
+        unreadCount: 0, // TODO: implement unread count
+        updatedAt: thread.messages[0]?.createdAt || thread.createdAt,
       };
+    });
+
+    // Sort by most recent message (newest first)
+    transformed.sort((a: any, b: any) => {
+      const dateA = new Date(a.updatedAt).getTime();
+      const dateB = new Date(b.updatedAt).getTime();
+      return dateB - dateA;
     });
 
     return NextResponse.json(transformed);

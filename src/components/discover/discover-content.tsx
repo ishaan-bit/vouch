@@ -18,14 +18,16 @@ interface DiscoverUser {
   username: string | null;
   avatarUrl: string | null;
   createdAt: string;
-  _count: {
-    memberships: number;
+  _count?: {
+    memberships?: number;
   };
 }
 
 // User Card Component
 function UserCard({ user }: { user: DiscoverUser }) {
   const [isHovered, setIsHovered] = useState(false);
+  // Defensive: ensure memberships count is a number
+  const membershipsCount = user._count?.memberships ?? 0;
   
   return (
     <Link href={`/profile/${user.username || user.id}`}>
@@ -58,7 +60,7 @@ function UserCard({ user }: { user: DiscoverUser }) {
           <h3 className="font-semibold text-white truncate">{user.name || "Anonymous"}</h3>
           <p className="text-sm text-white/40 flex items-center gap-1.5">
             <Trophy className="w-3.5 h-3.5 text-[var(--accent-gold)]" />
-            {user._count.memberships} pact{user._count.memberships !== 1 ? "s" : ""}
+            {membershipsCount} pact{membershipsCount !== 1 ? "s" : ""}
           </p>
         </div>
         
@@ -122,7 +124,7 @@ function LoadingSkeleton() {
 
 // Grid Card for alternative view
 function PactGridCard({ pact }: { pact: DiscoverPact }) {
-  const formatStake = (amountPaise: number | null) => {
+  const formatStake = (amountPaise: number | null | undefined) => {
     if (!amountPaise) return "Free";
     return `₹${(amountPaise / 100).toFixed(0)}`;
   };
@@ -146,7 +148,7 @@ function PactGridCard({ pact }: { pact: DiscoverPact }) {
           </div>
           <div className="absolute bottom-2 right-2 px-2 py-1 bg-black/30 backdrop-blur-md rounded-full text-xs text-[var(--accent-gold)] flex items-center gap-1">
             <Coins className="w-3 h-3" />
-            {formatStake(pact.stakes.minStakeAmount)}
+            {formatStake(pact.stakes?.minStakeAmount)}
           </div>
         </div>
 

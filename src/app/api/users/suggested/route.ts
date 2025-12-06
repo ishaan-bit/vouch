@@ -40,10 +40,10 @@ export async function GET() {
         name: true,
         username: true,
         avatarUrl: true,
-        profileStats: {
+        createdAt: true,
+        _count: {
           select: {
-            trustScore: true,
-            groupsCompleted: true,
+            groupMemberships: true,
           },
         },
       },
@@ -53,8 +53,16 @@ export async function GET() {
       take: 10,
     });
 
+    // Transform to expected format with defensive defaults
     const usersWithStatus = suggestedUsers.map((user: any) => ({
-      ...user,
+      id: user.id,
+      name: user.name,
+      username: user.username,
+      avatarUrl: user.avatarUrl,
+      createdAt: user.createdAt,
+      _count: {
+        memberships: user._count?.groupMemberships ?? 0,
+      },
       isFriend: false,
       hasPendingRequest: false,
     }));

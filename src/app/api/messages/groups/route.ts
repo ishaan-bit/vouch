@@ -73,7 +73,15 @@ export async function GET() {
       memberAvatars: m.group.memberships
         .map((mem) => mem.user.avatarUrl)
         .filter(Boolean) as string[],
+      updatedAt: m.group.chatMessages[0]?.createdAt || new Date(0),
     }));
+
+    // Sort by most recent message (newest first)
+    groupChats.sort((a, b) => {
+      const dateA = new Date(a.updatedAt).getTime();
+      const dateB = new Date(b.updatedAt).getTime();
+      return dateB - dateA;
+    });
 
     return NextResponse.json(groupChats);
   } catch (error) {

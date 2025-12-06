@@ -47,13 +47,13 @@ export interface DiscoverPact {
     username: string | null;
     avatarUrl: string | null;
   };
-  members: Array<{
+  members?: Array<{
     id: string;
     name: string | null;
     avatarUrl: string | null;
   }>;
   memberCount: number;
-  rules: Array<{
+  rules?: Array<{
     id: string;
     title: string;
     stakeAmount: number;
@@ -64,7 +64,7 @@ export interface DiscoverPact {
     };
   }>;
   rulesCount: number;
-  stakes: {
+  stakes?: {
     minStakeAmount: number | null;
     maxStakeAmount: number | null;
   };
@@ -131,10 +131,15 @@ function SwipeCard({
     (e.target as HTMLElement).releasePointerCapture(e.pointerId);
   };
 
-  const formatStake = (amountPaise: number | null) => {
+  const formatStake = (amountPaise: number | null | undefined) => {
     if (!amountPaise) return "Free";
     return `₹${(amountPaise / 100).toFixed(0)}`;
   };
+
+  // Defensive: ensure members is an array
+  const members = pact.members ?? [];
+  const rules = pact.rules ?? [];
+  const stakes = pact.stakes ?? { minStakeAmount: null, maxStakeAmount: null };
 
   const durationLabel = `${pact.durationDays} day${pact.durationDays !== 1 ? "s" : ""}`;
 
@@ -178,9 +183,9 @@ function SwipeCard({
         <div className="absolute top-4 right-4">
           <span className="px-3 py-1.5 bg-black/30 backdrop-blur-md rounded-full text-sm font-medium text-[var(--accent-gold)] flex items-center gap-2">
             <Coins className="w-4 h-4" />
-            {formatStake(pact.stakes.minStakeAmount)}
-            {pact.stakes.maxStakeAmount && pact.stakes.maxStakeAmount !== pact.stakes.minStakeAmount && (
-              <span>- {formatStake(pact.stakes.maxStakeAmount)}</span>
+            {formatStake(stakes.minStakeAmount)}
+            {stakes.maxStakeAmount && stakes.maxStakeAmount !== stakes.minStakeAmount && (
+              <span>- {formatStake(stakes.maxStakeAmount)}</span>
             )}
           </span>
         </div>
@@ -233,8 +238,8 @@ function SwipeCard({
         {/* Member Avatars */}
         <div className="flex items-center justify-center mb-6">
           <div className="flex -space-x-2">
-            {pact.members.slice(0, 5).map((member, i) => (
-              <Avatar key={member.id} className="w-10 h-10 border-2 border-[var(--dusk-2)]">
+            {members.slice(0, 5).map((member, i) => (
+              <Avatar key={member.id || i} className="w-10 h-10 border-2 border-[var(--dusk-2)]">
                 <AvatarImage src={member.avatarUrl || undefined} />
                 <AvatarFallback className="bg-gradient-to-br from-[var(--accent-violet)] to-[var(--accent-magenta)] text-white text-sm">
                   {member.name?.[0] || "?"}
@@ -250,11 +255,11 @@ function SwipeCard({
         </div>
 
         {/* Existing Rules Preview */}
-        {pact.rules.length > 0 && (
+        {rules.length > 0 && (
           <div className="flex-1 overflow-y-auto mb-4">
             <p className="text-xs text-white/40 uppercase tracking-wider mb-2">Current Rules</p>
             <div className="space-y-2">
-              {pact.rules.slice(0, 3).map((rule) => (
+              {rules.slice(0, 3).map((rule) => (
                 <div key={rule.id} className="p-3 rounded-xl bg-[var(--dusk-3)]/60 border border-white/5">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-white/80 truncate flex-1">{rule.title}</span>
@@ -264,8 +269,8 @@ function SwipeCard({
                   </div>
                 </div>
               ))}
-              {pact.rules.length > 3 && (
-                <p className="text-xs text-white/30 text-center">+{pact.rules.length - 3} more</p>
+              {rules.length > 3 && (
+                <p className="text-xs text-white/30 text-center">+{rules.length - 3} more</p>
               )}
             </div>
           </div>
@@ -358,7 +363,7 @@ function JoinModal({
     joinMutation.mutate();
   };
 
-  const formatStake = (amountPaise: number | null) => {
+  const formatStake = (amountPaise: number | null | undefined) => {
     if (!amountPaise) return "Free";
     return `₹${(amountPaise / 100).toFixed(0)}`;
   };
@@ -388,8 +393,8 @@ function JoinModal({
               <div className="min-w-0">
                 <h3 className="font-semibold text-white truncate">{pact.name}</h3>
                 <p className="text-sm text-white/40">
-                  {pact.memberCount} members • Stakes: {formatStake(pact.stakes.minStakeAmount)}
-                  {pact.stakes.maxStakeAmount !== pact.stakes.minStakeAmount && ` - ${formatStake(pact.stakes.maxStakeAmount)}`}
+                  {pact.memberCount} members • Stakes: {formatStake(pact.stakes?.minStakeAmount)}
+                  {pact.stakes?.maxStakeAmount && pact.stakes.maxStakeAmount !== pact.stakes.minStakeAmount && ` - ${formatStake(pact.stakes.maxStakeAmount)}`}
                 </p>
               </div>
             </div>

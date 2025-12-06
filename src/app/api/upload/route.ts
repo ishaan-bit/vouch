@@ -10,6 +10,9 @@ const ALLOWED_TYPES = [
   "image/gif",
   "video/mp4",
   "video/webm",
+  "audio/webm", // For voice recordings
+  "audio/mp4",
+  "audio/mpeg",
 ];
 
 const MAX_SIZE = 50 * 1024 * 1024; // 50MB
@@ -22,7 +25,25 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const formData = await request.formData();
+    // Check if Vercel Blob is configured
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      console.error("BLOB_READ_WRITE_TOKEN not configured");
+      return NextResponse.json(
+        { error: "File storage not configured. Please contact support." },
+        { status: 503 }
+      );
+    }
+
+    let formData: FormData;
+    try {
+      formData = await request.formData();
+    } catch {
+      return NextResponse.json(
+        { error: "Invalid form data" },
+        { status: 400 }
+      );
+    }
+    
     const file = formData.get("file") as File | null;
     const folder = (formData.get("folder") as string) || "general";
 
@@ -33,7 +54,7 @@ export async function POST(request: Request) {
     // Validate file type
     if (!ALLOWED_TYPES.includes(file.type)) {
       return NextResponse.json(
-        { error: "Invalid file type. Allowed: images and videos" },
+        { error: `Invalid file type: ${file.type}. Allowed: images, videos, and audio.` },
         { status: 400 }
       );
     }
@@ -59,8 +80,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ url: blob.url }, { status: 201 });
   } catch (error) {
     console.error("Error uploading file:", error);
+    
+    // Provide more specific error message
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    
+    if (errorMessage.includes("BLOB_READ_WRITE_TOKEN") || errorMessage.includes("token")) {
+      return NextResponse.json(
+        { error: "File storage configuration error. Please contact support." },
+        { status: 503 }
+      );
+    }
+    
     return NextResponse.json(
-      { error: "Failed to upload file" },
+      { error: "Failed to upload file. Please try again." },
       { status: 500 }
     );
   }
