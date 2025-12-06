@@ -82,26 +82,37 @@ const statements: string[] = [
   )`,
 
   // Groups table
-  `CREATE TABLE IF NOT EXISTS "Group" (
+  // Group table - drop and recreate with full schema
+  `DROP TABLE IF EXISTS "Group"`,
+  `CREATE TABLE "Group" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "name" TEXT NOT NULL,
+    "slug" TEXT NOT NULL UNIQUE,
+    "inviteCode" TEXT NOT NULL UNIQUE,
     "description" TEXT,
-    "imageUrl" TEXT,
+    "durationDays" INTEGER NOT NULL DEFAULT 3,
+    "startDate" DATETIME,
+    "endDate" DATETIME,
+    "status" TEXT NOT NULL DEFAULT 'PLANNING',
+    "visibility" TEXT NOT NULL DEFAULT 'PUBLIC',
+    "isOpenToJoin" INTEGER NOT NULL DEFAULT 1,
+    "createdByUserId" TEXT NOT NULL,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "creatorId" TEXT NOT NULL,
-    CONSTRAINT "Group_creatorId_fkey" FOREIGN KEY ("creatorId") REFERENCES "User" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+    CONSTRAINT "Group_createdByUserId_fkey" FOREIGN KEY ("createdByUserId") REFERENCES "User" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
   )`,
 
-  // GroupMembership table
-  `CREATE TABLE IF NOT EXISTS "GroupMembership" (
+  // GroupMembership table - drop and recreate
+  `DROP TABLE IF EXISTS "GroupMembership"`,
+  `CREATE TABLE "GroupMembership" (
     "id" TEXT NOT NULL PRIMARY KEY,
-    "userId" TEXT NOT NULL,
     "groupId" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
     "role" TEXT NOT NULL DEFAULT 'MEMBER',
+    "isReady" INTEGER NOT NULL DEFAULT 0,
     "joinedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "GroupMembership_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT "GroupMembership_groupId_fkey" FOREIGN KEY ("groupId") REFERENCES "Group" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    CONSTRAINT "GroupMembership_groupId_fkey" FOREIGN KEY ("groupId") REFERENCES "Group" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "GroupMembership_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
   )`,
   `CREATE UNIQUE INDEX IF NOT EXISTS "GroupMembership_userId_groupId_key" ON "GroupMembership"("userId", "groupId")`,
 
@@ -286,16 +297,18 @@ const statements: string[] = [
   )`,
   `CREATE UNIQUE INDEX IF NOT EXISTS "ProofReaction_proofId_userId_emoji_key" ON "ProofReaction"("proofId", "userId", "emoji")`,
 
-  // Rule table
-  `CREATE TABLE IF NOT EXISTS "Rule" (
+  // Rule table - drop and recreate
+  `DROP TABLE IF EXISTS "Rule"`,
+  `CREATE TABLE "Rule" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "groupId" TEXT NOT NULL,
     "creatorId" TEXT NOT NULL,
     "title" TEXT NOT NULL,
-    "description" TEXT,
-    "frequency" TEXT NOT NULL DEFAULT 'DAILY',
-    "isApproved" INTEGER NOT NULL DEFAULT 0,
+    "description" TEXT NOT NULL,
+    "stakeAmount" INTEGER NOT NULL,
+    "approved" INTEGER NOT NULL DEFAULT 0,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "Rule_groupId_fkey" FOREIGN KEY ("groupId") REFERENCES "Group" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT "Rule_creatorId_fkey" FOREIGN KEY ("creatorId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
   )`,
@@ -311,6 +324,84 @@ const statements: string[] = [
     CONSTRAINT "RuleApproval_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
   )`,
   `CREATE UNIQUE INDEX IF NOT EXISTS "RuleApproval_ruleId_userId_key" ON "RuleApproval"("ruleId", "userId")`,
+
+  // JoinRequest table
+  `CREATE TABLE IF NOT EXISTS "JoinRequest" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "groupId" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "ruleId" TEXT NOT NULL UNIQUE,
+    "status" TEXT NOT NULL DEFAULT 'PENDING',
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "JoinRequest_groupId_fkey" FOREIGN KEY ("groupId") REFERENCES "Group" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "JoinRequest_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "JoinRequest_ruleId_fkey" FOREIGN KEY ("ruleId") REFERENCES "Rule" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "JoinRequest_groupId_userId_key" ON "JoinRequest"("groupId", "userId")`,
+
+  // CallSession table
+  `CREATE TABLE IF NOT EXISTS "CallSession" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "groupId" TEXT NOT NULL,
+    "scheduledAt" DATETIME,
+    "startedAt" DATETIME,
+    "endedAt" DATETIME,
+    "status" TEXT NOT NULL DEFAULT 'SCHEDULED',
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "CallSession_groupId_fkey" FOREIGN KEY ("groupId") REFERENCES "Group" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+  )`,
+
+  // RuleVote table
+  `CREATE TABLE IF NOT EXISTS "RuleVote" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "callSessionId" TEXT NOT NULL,
+    "voterId" TEXT NOT NULL,
+    "targetUserId" TEXT NOT NULL,
+    "ruleId" TEXT NOT NULL,
+    "value" TEXT NOT NULL,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "RuleVote_callSessionId_fkey" FOREIGN KEY ("callSessionId") REFERENCES "CallSession" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "RuleVote_voterId_fkey" FOREIGN KEY ("voterId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "RuleVote_targetUserId_fkey" FOREIGN KEY ("targetUserId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "RuleVote_ruleId_fkey" FOREIGN KEY ("ruleId") REFERENCES "Rule" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "RuleVote_callSessionId_ruleId_voterId_targetUserId_key" ON "RuleVote"("callSessionId", "ruleId", "voterId", "targetUserId")`,
+
+  // PaymentObligation table
+  `CREATE TABLE IF NOT EXISTS "PaymentObligation" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "groupId" TEXT NOT NULL,
+    "ruleId" TEXT NOT NULL,
+    "callSessionId" TEXT,
+    "fromUserId" TEXT NOT NULL,
+    "toUserId" TEXT NOT NULL,
+    "amount" INTEGER NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'PENDING',
+    "settledAt" DATETIME,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "PaymentObligation_groupId_fkey" FOREIGN KEY ("groupId") REFERENCES "Group" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "PaymentObligation_ruleId_fkey" FOREIGN KEY ("ruleId") REFERENCES "Rule" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "PaymentObligation_callSessionId_fkey" FOREIGN KEY ("callSessionId") REFERENCES "CallSession" ("id") ON DELETE SET NULL ON UPDATE CASCADE,
+    CONSTRAINT "PaymentObligation_fromUserId_fkey" FOREIGN KEY ("fromUserId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "PaymentObligation_toUserId_fkey" FOREIGN KEY ("toUserId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "PaymentObligation_groupId_ruleId_fromUserId_toUserId_key" ON "PaymentObligation"("groupId", "ruleId", "fromUserId", "toUserId")`,
+
+  // Notification table - drop and recreate with correct schema
+  `DROP TABLE IF EXISTS "Notification"`,
+  `CREATE TABLE "Notification" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "userId" TEXT NOT NULL,
+    "type" TEXT NOT NULL,
+    "title" TEXT NOT NULL,
+    "message" TEXT,
+    "data" TEXT,
+    "isRead" INTEGER NOT NULL DEFAULT 0,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "Notification_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+  )`,
 ];
 
 async function pushSchema() {
