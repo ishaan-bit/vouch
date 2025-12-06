@@ -8,22 +8,38 @@ interface RouteParams {
 
 // GET /api/messages/dm/[threadId] - Get messages in a DM thread
 export async function GET(request: NextRequest, { params }: RouteParams) {
+  let threadId: string;
+  
+  try {
+    const resolvedParams = await params;
+    threadId = resolvedParams.threadId;
+  } catch {
+    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+  }
+
+  if (!threadId) {
+    return NextResponse.json({ error: "Thread ID required" }, { status: 400 });
+  }
+
   try {
     const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { threadId } = await params;
-    
-    if (!threadId) {
-      return NextResponse.json({ error: "Thread ID required" }, { status: 400 });
-    }
-
     // Check if user is part of the thread
-    const thread = await prisma.dmThread.findUnique({
-      where: { id: threadId },
-    });
+    let thread;
+    try {
+      thread = await prisma.dmThread.findUnique({
+        where: { id: threadId },
+      });
+    } catch (dbError) {
+      console.error("DB error finding thread:", dbError);
+      return NextResponse.json({ 
+        error: "Database error", 
+        details: dbError instanceof Error ? dbError.message : "Unknown" 
+      }, { status: 500 });
+    }
 
     if (!thread) {
       return NextResponse.json({ error: "Thread not found" }, { status: 404 });
@@ -33,27 +49,35 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: "Not authorized" }, { status: 403 });
     }
 
-    // Fetch messages - simple query without cursor for now
-    const messages = await prisma.chatMessage.findMany({
-      where: { dmThreadId: threadId },
-      orderBy: { createdAt: "asc" },
-      take: 100,
-      include: {
-        sender: {
-          select: { id: true, name: true, avatarUrl: true },
+    // Fetch messages
+    let messages;
+    try {
+      messages = await prisma.chatMessage.findMany({
+        where: { dmThreadId: threadId },
+        orderBy: { createdAt: "asc" },
+        take: 100,
+        include: {
+          sender: {
+            select: { id: true, name: true, avatarUrl: true },
+          },
         },
-      },
-    });
+      });
+    } catch (msgError) {
+      console.error("DB error fetching messages:", msgError);
+      return NextResponse.json({ 
+        error: "Failed to fetch messages", 
+        details: msgError instanceof Error ? msgError.message : "Unknown" 
+      }, { status: 500 });
+    }
 
     return NextResponse.json({
-      messages,
+      messages: messages || [],
       nextCursor: null,
     });
   } catch (error) {
-    console.error("Error fetching DM messages:", error);
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error("Error in DM GET:", error);
     return NextResponse.json(
-      { error: "Failed to fetch messages", details: errorMessage },
+      { error: "Server error", details: error instanceof Error ? error.message : "Unknown" },
       { status: 500 }
     );
   }
