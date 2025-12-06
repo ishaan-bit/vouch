@@ -18,9 +18,90 @@ export default async function GroupPage({ params }: GroupPageProps) {
 
   const { id } = await params;
 
-  let group;
-  try {
-    group = await prisma.group.findUnique({
+  // First, just check if the group exists
+  const groupExists = await prisma.group.findUnique({
+    where: { id },
+    select: { id: true },
+  });
+
+  if (!groupExists) {
+    notFound();
+  }
+
+  // Now fetch the full group data
+  const group = await prisma.group.findUnique({
+    where: { id },
+    include: {
+      creator: {
+        select: {
+          id: true,
+          name: true,
+          username: true,
+          avatarUrl: true,
+        },
+      },
+      memberships: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              username: true,
+              avatarUrl: true,
+              upiId: true,
+            },
+          },
+        },
+      },
+      rules: {
+        where: {
+          approved: true,
+        },
+        include: {
+          creator: {
+            select: {
+              id: true,
+              name: true,
+              avatarUrl: true,
+            },
+          },
+          approvals: true,
+        },
+        orderBy: {
+          createdAt: "asc",
+        },
+      },
+      joinRequests: {
+        where: {
+          userId: session.user.id,
+        },
+        select: {
+          id: true,
+          status: true,
+        },
+      },
+      _count: {
+        select: {
+          proofs: true,
+        },
+      },
+    },
+  });
+
+  if (!group) {
+    notFound();
+  }
+
+  // Check if user is a member
+  const isMember = group.memberships.some((m: { userId: string }) => m.userId === session.user.id);
+  
+  // If member, show full detail view
+  if (isMember) {
+    // Check if user is the creator
+    const isCreator = group.createdByUserId === session.user.id;
+    
+    // Refetch with all rules (including unapproved) for members
+    const fullGroup = await prisma.group.findUnique({
       where: { id },
       include: {
         creator: {
@@ -45,9 +126,6 @@ export default async function GroupPage({ params }: GroupPageProps) {
           },
         },
         rules: {
-          where: {
-            approved: true, // Only show approved rules to non-members
-          },
           include: {
             creator: {
               select: {
@@ -62,15 +140,6 @@ export default async function GroupPage({ params }: GroupPageProps) {
             createdAt: "asc",
           },
         },
-        joinRequests: {
-          where: {
-            userId: session.user.id,
-          },
-          select: {
-            id: true,
-            status: true,
-          },
-        },
         _count: {
           select: {
             proofs: true,
@@ -78,76 +147,6 @@ export default async function GroupPage({ params }: GroupPageProps) {
         },
       },
     });
-  } catch (error) {
-    console.error("Error fetching group:", error);
-    notFound();
-  }
-
-  if (!group) {
-    notFound();
-  }
-
-  // Check if user is a member
-  const isMember = group.memberships.some((m: { userId: string }) => m.userId === session.user.id);
-  
-  // If member, show full detail view
-  if (isMember) {
-    // Check if user is the creator
-    const isCreator = group.createdByUserId === session.user.id;
-    
-    let fullGroup;
-    try {
-      // Refetch with all rules (including unapproved) for members
-      fullGroup = await prisma.group.findUnique({
-        where: { id },
-        include: {
-          creator: {
-            select: {
-              id: true,
-              name: true,
-              username: true,
-              avatarUrl: true,
-            },
-          },
-          memberships: {
-            include: {
-              user: {
-                select: {
-                  id: true,
-                  name: true,
-                  username: true,
-                  avatarUrl: true,
-                  upiId: true,
-                },
-              },
-            },
-          },
-          rules: {
-            include: {
-              creator: {
-                select: {
-                  id: true,
-                  name: true,
-                  avatarUrl: true,
-                },
-              },
-              approvals: true,
-            },
-            orderBy: {
-              createdAt: "asc",
-            },
-          },
-          _count: {
-            select: {
-              proofs: true,
-            },
-          },
-        },
-      });
-    } catch (error) {
-      console.error("Error fetching full group:", error);
-      notFound();
-    }
 
     if (!fullGroup) {
       notFound();
@@ -161,35 +160,30 @@ export default async function GroupPage({ params }: GroupPageProps) {
     }> = [];
 
     if (isCreator) {
-      try {
-        const joinRequests = await prisma.joinRequest.findMany({
-          where: {
-            groupId: id,
-            status: "PENDING",
-          },
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-                avatarUrl: true,
-              },
-            },
-            rule: {
-              select: {
-                id: true,
-                title: true,
-                description: true,
-                stakeAmount: true,
-              },
+      const joinRequests = await prisma.joinRequest.findMany({
+        where: {
+          groupId: id,
+          status: "PENDING",
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              avatarUrl: true,
             },
           },
-        });
-        pendingJoinRequests = joinRequests;
-      } catch (error) {
-        console.error("Error fetching join requests:", error);
-        // Continue without join requests
-      }
+          rule: {
+            select: {
+              id: true,
+              title: true,
+              description: true,
+              stakeAmount: true,
+            },
+          },
+        },
+      });
+      pendingJoinRequests = joinRequests;
     }
 
     return (
