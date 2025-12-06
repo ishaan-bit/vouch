@@ -287,21 +287,33 @@ export default function UserProfilePage({ params }: UserProfilePageProps) {
             {profile.proofs && profile.proofs.length > 0 ? (
               <div className="grid grid-cols-2 gap-3">
                 {profile.proofs.map((proof) => (
-                  <Card key={proof.id} className="overflow-hidden">
+                  <Card 
+                    key={proof.id} 
+                    className="overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all"
+                    onClick={() => {
+                      if (proof.mediaUrl) {
+                        window.open(proof.mediaUrl, '_blank');
+                      }
+                    }}
+                  >
                     <div className="aspect-square relative">
                       {proof.mediaUrl ? (
-                        proof.mediaType === "VIDEO" ? (
+                        (proof.mediaType === "VIDEO" || proof.mediaType === "video") ? (
                           <video
                             src={proof.mediaUrl}
                             className="w-full h-full object-cover"
                             controls={false}
                             muted
+                            playsInline
                           />
                         ) : (
                           <img
                             src={proof.mediaUrl}
                             alt={proof.caption || "Proof"}
                             className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                            }}
                           />
                         )
                       ) : (

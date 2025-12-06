@@ -464,17 +464,39 @@ export function ProfileContent({ user, friends, isOwnProfile }: ProfileContentPr
                     <div
                       key={proof.id}
                       className="aspect-square relative overflow-hidden bg-slate-800 group cursor-pointer"
+                      onClick={() => {
+                        // Open proof detail or lightbox
+                        if (proof.mediaUrl) {
+                          window.open(proof.mediaUrl, '_blank');
+                        }
+                      }}
                     >
-                      {proof.mediaUrl && proof.mediaType === "IMAGE" ? (
+                      {proof.mediaUrl && (proof.mediaType === "IMAGE" || proof.mediaType === "image") ? (
                         <img
                           src={proof.mediaUrl}
-                          alt=""
+                          alt={proof.caption || "Proof"}
                           className="h-full w-full object-cover group-hover:scale-105 transition-transform"
+                          onError={(e) => {
+                            // Hide broken image and show fallback
+                            e.currentTarget.style.display = 'none';
+                          }}
                         />
-                      ) : proof.mediaType === "VIDEO" && proof.mediaUrl ? (
+                      ) : proof.mediaUrl && (proof.mediaType === "VIDEO" || proof.mediaType === "video") ? (
                         <video
                           src={proof.mediaUrl}
                           className="h-full w-full object-cover"
+                          muted
+                          playsInline
+                        />
+                      ) : proof.mediaUrl ? (
+                        // Fallback for any media URL - try to display as image
+                        <img
+                          src={proof.mediaUrl}
+                          alt={proof.caption || "Proof"}
+                          className="h-full w-full object-cover group-hover:scale-105 transition-transform"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                          }}
                         />
                       ) : (
                         <div className="flex h-full items-center justify-center text-slate-600">

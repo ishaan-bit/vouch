@@ -108,17 +108,19 @@ export function ChatBox({ type, id, recipientId }: ChatBoxProps) {
   // Send message mutation
   const sendMutation = useMutation({
     mutationFn: async ({ content, mediaUrl, mediaType }: { content?: string; mediaUrl?: string; mediaType?: string }) => {
-      const endpoint = type === "dm" ? "/api/messages/dm" : `/api/messages/group/${id}`;
-      const body = type === "dm"
-        ? { recipientId, content, mediaUrl, mediaType }
-        : { content, mediaUrl, mediaType };
+      // For DMs, use the thread-specific endpoint to avoid needing recipientId
+      const endpoint = type === "dm" ? `/api/messages/dm/${id}` : `/api/messages/group/${id}`;
+      const body = { content, mediaUrl, mediaType };
 
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      if (!res.ok) throw new Error("Failed to send message");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to send message");
+      }
       return res.json();
     },
     onSuccess: (newMsg) => {
