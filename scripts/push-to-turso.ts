@@ -50,6 +50,45 @@ const statements: string[] = [
   )`,
   `CREATE UNIQUE INDEX IF NOT EXISTS "Account_provider_providerAccountId_key" ON "Account"("provider", "providerAccountId")`,
 
+  // ProfileStats table
+  `CREATE TABLE IF NOT EXISTS "ProfileStats" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "userId" TEXT NOT NULL UNIQUE,
+    "totalEarned" INTEGER NOT NULL DEFAULT 0,
+    "totalPaid" INTEGER NOT NULL DEFAULT 0,
+    "groupsCompleted" INTEGER NOT NULL DEFAULT 0,
+    "groupsStarted" INTEGER NOT NULL DEFAULT 0,
+    "trustScore" REAL NOT NULL DEFAULT 50,
+    "rulesCreatedCount" INTEGER NOT NULL DEFAULT 0,
+    "rulesCompletedCount" INTEGER NOT NULL DEFAULT 0,
+    "longestStreak" INTEGER NOT NULL DEFAULT 0,
+    CONSTRAINT "ProfileStats_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+  )`,
+
+  // Friendship table
+  `CREATE TABLE IF NOT EXISTS "Friendship" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "requesterId" TEXT NOT NULL,
+    "receiverId" TEXT NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'PENDING',
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "Friendship_requesterId_fkey" FOREIGN KEY ("requesterId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "Friendship_receiverId_fkey" FOREIGN KEY ("receiverId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "Friendship_requesterId_receiverId_key" ON "Friendship"("requesterId", "receiverId")`,
+
+  // DmThread table
+  `CREATE TABLE IF NOT EXISTS "DmThread" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "userAId" TEXT NOT NULL,
+    "userBId" TEXT NOT NULL,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "DmThread_userAId_fkey" FOREIGN KEY ("userAId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "DmThread_userBId_fkey" FOREIGN KEY ("userBId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "DmThread_userAId_userBId_key" ON "DmThread"("userAId", "userBId")`,
+
   // Sessions table
   `CREATE TABLE IF NOT EXISTS "Session" (
     "id" TEXT NOT NULL PRIMARY KEY,
