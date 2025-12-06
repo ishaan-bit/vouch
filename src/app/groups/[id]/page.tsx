@@ -18,79 +18,9 @@ export default async function GroupPage({ params }: GroupPageProps) {
 
   const { id } = await params;
 
-  const group = await prisma.group.findUnique({
-    where: { id },
-    include: {
-      creator: {
-        select: {
-          id: true,
-          name: true,
-          username: true,
-          avatarUrl: true,
-        },
-      },
-      memberships: {
-        include: {
-          user: {
-            select: {
-              id: true,
-              name: true,
-              username: true,
-              avatarUrl: true,
-              upiId: true,
-            },
-          },
-        },
-      },
-      rules: {
-        where: {
-          approved: true, // Only show approved rules to non-members
-        },
-        include: {
-          creator: {
-            select: {
-              id: true,
-              name: true,
-              avatarUrl: true,
-            },
-          },
-          approvals: true,
-        },
-        orderBy: {
-          createdAt: "asc",
-        },
-      },
-      joinRequests: {
-        where: {
-          userId: session.user.id,
-        },
-        select: {
-          id: true,
-          status: true,
-        },
-      },
-      _count: {
-        select: {
-          proofs: true,
-        },
-      },
-    },
-  });
-
-  if (!group) {
-    notFound();
-  }
-
-  // Check if user is a member
-  const isMember = group.memberships.some((m: { userId: string }) => m.userId === session.user.id);
-  
-  // If member, show full detail view
-  if (isMember) {
-    // Check if user is the creator
-    const isCreator = group.createdByUserId === session.user.id;
-    
-    // Refetch with all rules (including unapproved) for members
-    const fullGroup = await prisma.group.findUnique({
+  let group;
+  try {
+    group = await prisma.group.findUnique({
       where: { id },
       include: {
         creator: {
@@ -115,6 +45,9 @@ export default async function GroupPage({ params }: GroupPageProps) {
           },
         },
         rules: {
+          where: {
+            approved: true, // Only show approved rules to non-members
+          },
           include: {
             creator: {
               select: {
@@ -129,6 +62,15 @@ export default async function GroupPage({ params }: GroupPageProps) {
             createdAt: "asc",
           },
         },
+        joinRequests: {
+          where: {
+            userId: session.user.id,
+          },
+          select: {
+            id: true,
+            status: true,
+          },
+        },
         _count: {
           select: {
             proofs: true,
@@ -136,6 +78,80 @@ export default async function GroupPage({ params }: GroupPageProps) {
         },
       },
     });
+  } catch (error) {
+    console.error("Error fetching group:", error);
+    notFound();
+  }
+
+  if (!group) {
+    notFound();
+  }
+
+  // Check if user is a member
+  const isMember = group.memberships.some((m: { userId: string }) => m.userId === session.user.id);
+  
+  // If member, show full detail view
+  if (isMember) {
+    // Check if user is the creator
+    const isCreator = group.createdByUserId === session.user.id;
+    
+    let fullGroup;
+    try {
+      // Refetch with all rules (including unapproved) for members
+      fullGroup = await prisma.group.findUnique({
+        where: { id },
+        include: {
+          creator: {
+            select: {
+              id: true,
+              name: true,
+              username: true,
+              avatarUrl: true,
+            },
+          },
+          memberships: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  username: true,
+                  avatarUrl: true,
+                  upiId: true,
+                },
+              },
+            },
+          },
+          rules: {
+            include: {
+              creator: {
+                select: {
+                  id: true,
+                  name: true,
+                  avatarUrl: true,
+                },
+              },
+              approvals: true,
+            },
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          _count: {
+            select: {
+              proofs: true,
+            },
+          },
+        },
+      });
+    } catch (error) {
+      console.error("Error fetching full group:", error);
+      notFound();
+    }
+
+    if (!fullGroup) {
+      notFound();
+    }
 
     // Fetch join requests separately for creator
     let pendingJoinRequests: Array<{
@@ -145,36 +161,41 @@ export default async function GroupPage({ params }: GroupPageProps) {
     }> = [];
 
     if (isCreator) {
-      const joinRequests = await prisma.joinRequest.findMany({
-        where: {
-          groupId: id,
-          status: "PENDING",
-        },
-        include: {
-          user: {
-            select: {
-              id: true,
-              name: true,
-              avatarUrl: true,
+      try {
+        const joinRequests = await prisma.joinRequest.findMany({
+          where: {
+            groupId: id,
+            status: "PENDING",
+          },
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                avatarUrl: true,
+              },
+            },
+            rule: {
+              select: {
+                id: true,
+                title: true,
+                description: true,
+                stakeAmount: true,
+              },
             },
           },
-          rule: {
-            select: {
-              id: true,
-              title: true,
-              description: true,
-              stakeAmount: true,
-            },
-          },
-        },
-      });
-      pendingJoinRequests = joinRequests;
+        });
+        pendingJoinRequests = joinRequests;
+      } catch (error) {
+        console.error("Error fetching join requests:", error);
+        // Continue without join requests
+      }
     }
 
     return (
       <AppShell>
         <GroupDetailContent 
-          group={fullGroup!} 
+          group={fullGroup} 
           currentUserId={session.user.id}
           pendingJoinRequests={pendingJoinRequests}
         />
