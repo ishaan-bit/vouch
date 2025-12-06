@@ -1,11 +1,12 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { io, Socket } from "socket.io-client";
-import { useSession } from "next-auth/react";
+import { createContext, useContext, ReactNode } from "react";
+
+// Socket.IO is disabled in production (Vercel serverless doesn't support WebSockets)
+// Chat uses polling via React Query's refetchInterval instead
 
 interface SocketContextType {
-  socket: Socket | null;
+  socket: null;
   isConnected: boolean;
   joinGroup: (groupId: string) => void;
   leaveGroup: (groupId: string) => void;
@@ -35,74 +36,18 @@ interface SocketProviderProps {
 }
 
 export function SocketProvider({ children }: SocketProviderProps) {
-  const { data: session } = useSession();
-  const [socket, setSocket] = useState<Socket | null>(null);
-  const [isConnected, setIsConnected] = useState(false);
-
-  useEffect(() => {
-    if (!session?.user?.id) return;
-
-    // Initialize socket connection
-    const socketInstance = io({
-      path: "/api/socketio",
-      addTrailingSlash: false,
-    });
-
-    socketInstance.on("connect", () => {
-      console.log("Socket connected");
-      setIsConnected(true);
-      // Join user's personal room
-      socketInstance.emit("join-user", session.user.id);
-    });
-
-    socketInstance.on("disconnect", () => {
-      console.log("Socket disconnected");
-      setIsConnected(false);
-    });
-
-    setSocket(socketInstance);
-
-    return () => {
-      socketInstance.disconnect();
-    };
-  }, [session?.user?.id]);
-
-  const joinGroup = (groupId: string) => {
-    socket?.emit("join-group", groupId);
-  };
-
-  const leaveGroup = (groupId: string) => {
-    socket?.emit("leave-group", groupId);
-  };
-
-  const joinDm = (threadId: string) => {
-    socket?.emit("join-dm", threadId);
-  };
-
-  const leaveDm = (threadId: string) => {
-    socket?.emit("leave-dm", threadId);
-  };
-
-  const sendMessage = (data: { threadId?: string; groupId?: string; message: unknown }) => {
-    socket?.emit("send-message", data);
-  };
-
-  const sendTyping = (data: { threadId?: string; groupId?: string; isTyping: boolean }) => {
-    if (!session?.user?.id) return;
-    socket?.emit("typing", { ...data, userId: session.user.id });
-  };
-
+  // No-op provider - socket is disabled on serverless platforms
   return (
     <SocketContext.Provider
       value={{
-        socket,
-        isConnected,
-        joinGroup,
-        leaveGroup,
-        joinDm,
-        leaveDm,
-        sendMessage,
-        sendTyping,
+        socket: null,
+        isConnected: false,
+        joinGroup: () => {},
+        leaveGroup: () => {},
+        joinDm: () => {},
+        leaveDm: () => {},
+        sendMessage: () => {},
+        sendTyping: () => {},
       }}
     >
       {children}

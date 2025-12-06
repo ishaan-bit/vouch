@@ -61,9 +61,10 @@ export function ChatBox({ type, id, recipientId }: ChatBoxProps) {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
   
-  const { socket, joinGroup, leaveGroup, joinDm, leaveDm, sendMessage: socketSend } = useSocket();
+  // Socket is disabled on serverless - just get the no-op functions
+  const { sendMessage: socketSend } = useSocket();
 
-  // Fetch messages
+  // Fetch messages with polling (30s interval for cost efficiency)
   const { data, isLoading } = useQuery({
     queryKey: ["messages", type, id],
     queryFn: async () => {
@@ -72,40 +73,13 @@ export function ChatBox({ type, id, recipientId }: ChatBoxProps) {
       if (!res.ok) throw new Error("Failed to fetch messages");
       return res.json();
     },
+    refetchInterval: 30000, // Poll every 30 seconds instead of real-time
+    refetchOnWindowFocus: true,
   });
 
   const messages: Message[] = data?.messages || [];
 
-  // Join/leave rooms
-  useEffect(() => {
-    if (type === "group") {
-      joinGroup(id);
-      return () => leaveGroup(id);
-    } else {
-      joinDm(id);
-      return () => leaveDm(id);
-    }
-  }, [type, id, joinGroup, leaveGroup, joinDm, leaveDm]);
-
-  // Listen for new messages
-  useEffect(() => {
-    if (!socket) return;
-
-    const handleNewMessage = (newMsg: Message) => {
-      queryClient.setQueryData(
-        ["messages", type, id],
-        (old: { messages: Message[]; nextCursor: string | null } | undefined) => ({
-          messages: [...(old?.messages || []), newMsg],
-          nextCursor: old?.nextCursor || null,
-        })
-      );
-    };
-
-    socket.on("new-message", handleNewMessage);
-    return () => {
-      socket.off("new-message", handleNewMessage);
-    };
-  }, [socket, queryClient, type, id]);
+  // Socket rooms disabled on serverless - polling handles updates instead
 
   // Auto-scroll to bottom
   useEffect(() => {
