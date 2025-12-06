@@ -246,6 +246,71 @@ const statements: string[] = [
     CONSTRAINT "MessageReaction_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
   )`,
   `CREATE UNIQUE INDEX IF NOT EXISTS "MessageReaction_messageId_userId_emoji_key" ON "MessageReaction"("messageId", "userId", "emoji")`,
+
+  // Proof table
+  `CREATE TABLE IF NOT EXISTS "Proof" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "groupId" TEXT NOT NULL,
+    "uploaderId" TEXT NOT NULL,
+    "dayIndex" INTEGER NOT NULL,
+    "caption" TEXT,
+    "mediaType" TEXT NOT NULL DEFAULT 'TEXT',
+    "mediaUrl" TEXT,
+    "textContent" TEXT,
+    "isPublic" INTEGER NOT NULL DEFAULT 1,
+    "isStory" INTEGER NOT NULL DEFAULT 0,
+    "expiresAt" DATETIME,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "Proof_groupId_fkey" FOREIGN KEY ("groupId") REFERENCES "Group" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "Proof_uploaderId_fkey" FOREIGN KEY ("uploaderId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+  )`,
+
+  // ProofRuleLink table
+  `CREATE TABLE IF NOT EXISTS "ProofRuleLink" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "proofId" TEXT NOT NULL,
+    "ruleId" TEXT NOT NULL,
+    CONSTRAINT "ProofRuleLink_proofId_fkey" FOREIGN KEY ("proofId") REFERENCES "Proof" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "ProofRuleLink_proofId_ruleId_key" ON "ProofRuleLink"("proofId", "ruleId")`,
+
+  // ProofReaction table
+  `CREATE TABLE IF NOT EXISTS "ProofReaction" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "proofId" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "emoji" TEXT NOT NULL,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "ProofReaction_proofId_fkey" FOREIGN KEY ("proofId") REFERENCES "Proof" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "ProofReaction_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "ProofReaction_proofId_userId_emoji_key" ON "ProofReaction"("proofId", "userId", "emoji")`,
+
+  // Rule table
+  `CREATE TABLE IF NOT EXISTS "Rule" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "groupId" TEXT NOT NULL,
+    "creatorId" TEXT NOT NULL,
+    "title" TEXT NOT NULL,
+    "description" TEXT,
+    "frequency" TEXT NOT NULL DEFAULT 'DAILY',
+    "isApproved" INTEGER NOT NULL DEFAULT 0,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "Rule_groupId_fkey" FOREIGN KEY ("groupId") REFERENCES "Group" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "Rule_creatorId_fkey" FOREIGN KEY ("creatorId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+  )`,
+
+  // RuleApproval table
+  `CREATE TABLE IF NOT EXISTS "RuleApproval" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "ruleId" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "approved" INTEGER NOT NULL DEFAULT 0,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "RuleApproval_ruleId_fkey" FOREIGN KEY ("ruleId") REFERENCES "Rule" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "RuleApproval_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "RuleApproval_ruleId_userId_key" ON "RuleApproval"("ruleId", "userId")`,
 ];
 
 async function pushSchema() {
