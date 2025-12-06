@@ -352,17 +352,18 @@ const statements: string[] = [
     CONSTRAINT "Rule_creatorId_fkey" FOREIGN KEY ("creatorId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
   )`,
 
-  // RuleApproval table
-  `CREATE TABLE IF NOT EXISTS "RuleApproval" (
+  // RuleApproval table - drop and recreate with correct column name
+  `DROP TABLE IF EXISTS "RuleApproval"`,
+  `CREATE TABLE "RuleApproval" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "ruleId" TEXT NOT NULL,
-    "userId" TEXT NOT NULL,
+    "approverId" TEXT NOT NULL,
     "approved" INTEGER NOT NULL DEFAULT 0,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "RuleApproval_ruleId_fkey" FOREIGN KEY ("ruleId") REFERENCES "Rule" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT "RuleApproval_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    CONSTRAINT "RuleApproval_approverId_fkey" FOREIGN KEY ("approverId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
   )`,
-  `CREATE UNIQUE INDEX IF NOT EXISTS "RuleApproval_ruleId_userId_key" ON "RuleApproval"("ruleId", "userId")`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "RuleApproval_ruleId_approverId_key" ON "RuleApproval"("ruleId", "approverId")`,
 
   // JoinRequest table
   `CREATE TABLE IF NOT EXISTS "JoinRequest" (
