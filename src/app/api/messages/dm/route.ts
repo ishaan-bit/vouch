@@ -112,33 +112,43 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const threads = await prisma.dmThread.findMany({
-      where: {
-        OR: [
-          { userAId: session.user.id },
-          { userBId: session.user.id },
-        ],
-      },
-      include: {
-        userA: {
-          select: { id: true, name: true, username: true, avatarUrl: true },
+    // Simple query first
+    let threads;
+    try {
+      threads = await prisma.dmThread.findMany({
+        where: {
+          OR: [
+            { userAId: session.user.id },
+            { userBId: session.user.id },
+          ],
         },
-        userB: {
-          select: { id: true, name: true, username: true, avatarUrl: true },
-        },
-        messages: {
-          take: 1,
-          orderBy: { createdAt: "desc" },
-          select: {
-            content: true,
-            createdAt: true,
-            sender: {
-              select: { id: true, name: true },
+        include: {
+          userA: {
+            select: { id: true, name: true, username: true, avatarUrl: true },
+          },
+          userB: {
+            select: { id: true, name: true, username: true, avatarUrl: true },
+          },
+          messages: {
+            take: 1,
+            orderBy: { createdAt: "desc" },
+            select: {
+              content: true,
+              createdAt: true,
+              sender: {
+                select: { id: true, name: true },
+              },
             },
           },
         },
-      },
-    });
+      });
+    } catch (dbError) {
+      console.error("DB error fetching threads:", dbError);
+      return NextResponse.json({ 
+        error: "Database error", 
+        details: dbError instanceof Error ? dbError.message : "Unknown" 
+      }, { status: 500 });
+    }
 
     // Transform and sort by most recent message
     const transformed = threads.map((thread: any) => {
@@ -164,7 +174,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error("Error fetching DM threads:", error);
     return NextResponse.json(
-      { error: "Failed to fetch threads" },
+      { error: "Failed to fetch threads", details: error instanceof Error ? error.message : "Unknown" },
       { status: 500 }
     );
   }
