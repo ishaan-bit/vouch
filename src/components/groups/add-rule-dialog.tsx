@@ -241,13 +241,13 @@ export function AddRuleDialog({
             {stakeAmount && !stakeError && (
               <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-center">
                 <p className="text-sm text-amber-200">
-                  If all 3 members follow this rule, you&apos;ll pay
+                  If all members follow this rule, you&apos;ll pay
                 </p>
                 <p className="text-2xl font-bold text-amber-400 mt-1">
-                  ₹{(parseFloat(stakeAmount) * 3).toLocaleString("en-IN")}
+                  ₹{(parseFloat(stakeAmount) * 2).toLocaleString("en-IN")} total
                 </p>
                 <p className="text-xs text-amber-300/60 mt-1">
-                  (example with 3 members)
+                  (₹{parseFloat(stakeAmount).toLocaleString("en-IN")} to each of the other 2 members)
                 </p>
               </div>
             )}
