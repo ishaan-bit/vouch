@@ -223,8 +223,11 @@ export function ProfileContent({ user, friends, isOwnProfile }: ProfileContentPr
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-violet-950/30 to-slate-950">
       {/* Gradient Background Header */}
       <div className="relative h-48 bg-gradient-to-br from-violet-600 via-fuchsia-500 to-pink-500">
-        {/* Mesh overlay */}
-        <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-20" />
+        {/* Mesh pattern overlay using CSS */}
+        <div className="absolute inset-0 opacity-20" style={{
+          backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)`,
+          backgroundSize: '20px 20px'
+        }} />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent" />
         
         {/* Settings button */}

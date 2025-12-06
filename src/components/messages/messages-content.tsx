@@ -306,77 +306,128 @@ export function MessagesContent({ userId }: MessagesContentProps) {
         </TabsList>
 
         <TabsContent value="direct" className="mt-4 space-y-3">
-          {dmLoading ? (
+          {dmLoading || friendsLoading ? (
             <div className="flex justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-[var(--accent-lilac)]" />
             </div>
-          ) : dmThreads && dmThreads.length > 0 ? (
-            dmThreads.map((thread) => (
-              <Link key={thread.id} href={`/messages/${thread.id}`}>
-                <div 
-                  className={cn(
-                    "relative flex items-center gap-3 p-4 rounded-2xl transition-all duration-300",
-                    "bg-[var(--dusk-2)]/60 backdrop-blur-xl",
-                    "border border-white/[0.06]",
-                    "hover:bg-[var(--dusk-2)]/80 hover:border-white/[0.1]"
-                  )}
-                  style={{
-                    boxShadow: "0 4px 20px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.05)",
-                  }}
-                >
-                  <div className="relative">
-                    <Avatar className="border-2 border-white/10">
-                      <AvatarImage src={thread.otherUser.avatarUrl || undefined} />
-                      <AvatarFallback className="bg-gradient-to-br from-[var(--accent-violet)] to-[var(--accent-magenta)] text-white">
-                        {thread.otherUser.name?.[0] || "?"}
-                      </AvatarFallback>
-                    </Avatar>
-                    {thread.unreadCount > 0 && (
-                      <div className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-[var(--accent-magenta)] text-[10px] text-white font-medium">
-                        {thread.unreadCount}
-                      </div>
+          ) : (
+            <>
+              {/* Existing DM threads */}
+              {dmThreads && dmThreads.length > 0 && dmThreads.map((thread) => (
+                <Link key={thread.id} href={`/messages/${thread.id}`}>
+                  <div 
+                    className={cn(
+                      "relative flex items-center gap-3 p-4 rounded-2xl transition-all duration-300",
+                      "bg-[var(--dusk-2)]/60 backdrop-blur-xl",
+                      "border border-white/[0.06]",
+                      "hover:bg-[var(--dusk-2)]/80 hover:border-white/[0.1]"
                     )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <p className="font-medium text-white">{thread.otherUser.name}</p>
-                      {thread.lastMessage && (
-                        <span className="text-xs text-white/30">
-                          {formatDistanceToNow(new Date(thread.lastMessage.createdAt), {
-                            addSuffix: false,
-                          })}
-                        </span>
+                    style={{
+                      boxShadow: "0 4px 20px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.05)",
+                    }}
+                  >
+                    <div className="relative">
+                      <Avatar className="border-2 border-white/10">
+                        <AvatarImage src={thread.otherUser.avatarUrl || undefined} />
+                        <AvatarFallback className="bg-gradient-to-br from-[var(--accent-violet)] to-[var(--accent-magenta)] text-white">
+                          {thread.otherUser.name?.[0] || "?"}
+                        </AvatarFallback>
+                      </Avatar>
+                      {thread.unreadCount > 0 && (
+                        <div className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-[var(--accent-magenta)] text-[10px] text-white font-medium">
+                          {thread.unreadCount}
+                        </div>
                       )}
                     </div>
-                    {thread.lastMessage ? (
-                      <p className="text-sm text-white/50 truncate">
-                        {thread.lastMessage.content}
-                      </p>
-                    ) : (
-                      <p className="text-sm text-white/30">No messages yet</p>
-                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <p className="font-medium text-white">{thread.otherUser.name}</p>
+                        {thread.lastMessage && (
+                          <span className="text-xs text-white/30">
+                            {formatDistanceToNow(new Date(thread.lastMessage.createdAt), {
+                              addSuffix: false,
+                            })}
+                          </span>
+                        )}
+                      </div>
+                      {thread.lastMessage ? (
+                        <p className="text-sm text-white/50 truncate">
+                          {thread.lastMessage.content}
+                        </p>
+                      ) : (
+                        <p className="text-sm text-white/30">No messages yet</p>
+                      )}
+                    </div>
+                  </div>
+                </Link>
+              ))}
+              
+              {/* Friends without existing threads - shown inline */}
+              {friendsWithoutThread.length > 0 && (
+                <div className="space-y-2">
+                  {dmThreads && dmThreads.length > 0 && (
+                    <p className="text-xs text-white/40 uppercase tracking-wider px-1 mt-4">
+                      Start a conversation
+                    </p>
+                  )}
+                  {friendsWithoutThread.map((friend) => (
+                    <button
+                      key={friend.id}
+                      onClick={() => startDmMutation.mutate(friend.id)}
+                      disabled={startDmMutation.isPending}
+                      className={cn(
+                        "w-full flex items-center gap-3 p-4 rounded-2xl transition-all duration-300",
+                        "bg-[var(--dusk-2)]/40 backdrop-blur-xl",
+                        "border border-white/[0.04] border-dashed",
+                        "hover:bg-[var(--dusk-2)]/60 hover:border-white/[0.1]"
+                      )}
+                    >
+                      <Avatar className="border-2 border-white/10">
+                        <AvatarImage src={friend.avatarUrl || undefined} />
+                        <AvatarFallback className="bg-gradient-to-br from-[var(--accent-violet)]/50 to-[var(--accent-magenta)]/50 text-white">
+                          {friend.name?.[0] || "?"}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 text-left">
+                        <p className="font-medium text-white/80">{friend.name || "Unknown"}</p>
+                        <p className="text-sm text-white/40">@{friend.username || "user"}</p>
+                      </div>
+                      <MessageCircle className="h-5 w-5 text-[var(--accent-lilac)]/60" />
+                    </button>
+                  ))}
+                </div>
+              )}
+              
+              {/* Empty state - no threads AND no friends */}
+              {(!dmThreads || dmThreads.length === 0) && friendsWithoutThread.length === 0 && (
+                <div 
+                  className={cn(
+                    "rounded-2xl overflow-hidden",
+                    "bg-[var(--dusk-2)]/60 backdrop-blur-xl",
+                    "border border-white/[0.06]"
+                  )}
+                >
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <div className="w-16 h-16 rounded-full bg-[var(--dusk-3)] flex items-center justify-center mb-4">
+                      <MessageCircle className="h-8 w-8 text-white/30" />
+                    </div>
+                    <p className="font-medium text-white/70">No conversations yet</p>
+                    <p className="text-sm text-white/40">
+                      Add friends from Discover to start chatting
+                    </p>
+                    <Link href="/discover">
+                      <Button 
+                        variant="ghost" 
+                        className="mt-4 text-[var(--accent-lilac)] hover:text-[var(--accent-lilac)] hover:bg-[var(--accent-lilac)]/10"
+                      >
+                        <Search className="h-4 w-4 mr-2" />
+                        Find Friends
+                      </Button>
+                    </Link>
                   </div>
                 </div>
-              </Link>
-            ))
-          ) : (
-            <div 
-              className={cn(
-                "rounded-2xl overflow-hidden",
-                "bg-[var(--dusk-2)]/60 backdrop-blur-xl",
-                "border border-white/[0.06]"
               )}
-            >
-              <div className="flex flex-col items-center justify-center py-12 text-center">
-                <div className="w-16 h-16 rounded-full bg-[var(--dusk-3)] flex items-center justify-center mb-4">
-                  <MessageCircle className="h-8 w-8 text-white/30" />
-                </div>
-                <p className="font-medium text-white/70">No conversations yet</p>
-                <p className="text-sm text-white/40">
-                  Start chatting with your friends
-                </p>
-              </div>
-            </div>
+            </>
           )}
         </TabsContent>
 

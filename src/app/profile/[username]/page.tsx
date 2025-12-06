@@ -20,11 +20,22 @@ import {
   Trophy,
   Loader2,
   Clock,
+  Image as ImageIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 
 interface UserProfilePageProps {
   params: Promise<{ username: string }>;
+}
+
+interface Proof {
+  id: string;
+  caption: string | null;
+  mediaType: string;
+  mediaUrl: string | null;
+  createdAt: string;
+  group: { id: string; name: string };
+  ruleLinks: { rule: { description: string } }[];
 }
 
 interface UserProfile {
@@ -40,6 +51,7 @@ interface UserProfile {
     totalProofs: number;
     successRate: number;
   } | null;
+  proofs: Proof[];
   friendshipStatus: "none" | "pending-sent" | "pending-received" | "friends";
   friendshipId?: string;
   mutualFriends: number;
@@ -255,8 +267,12 @@ export default function UserProfilePage({ params }: UserProfilePageProps) {
 
       {/* Content Tabs */}
       <div className="px-4 mt-6">
-        <Tabs defaultValue="groups">
-          <TabsList className="grid w-full grid-cols-2">
+        <Tabs defaultValue="proofs">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="proofs" className="gap-2">
+              <ImageIcon className="h-4 w-4" />
+              Proofs
+            </TabsTrigger>
             <TabsTrigger value="groups" className="gap-2">
               <Users className="h-4 w-4" />
               Groups
@@ -266,6 +282,58 @@ export default function UserProfilePage({ params }: UserProfilePageProps) {
               Achievements
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="proofs" className="mt-4">
+            {profile.proofs && profile.proofs.length > 0 ? (
+              <div className="grid grid-cols-2 gap-3">
+                {profile.proofs.map((proof) => (
+                  <Card key={proof.id} className="overflow-hidden">
+                    <div className="aspect-square relative">
+                      {proof.mediaUrl ? (
+                        proof.mediaType === "VIDEO" ? (
+                          <video
+                            src={proof.mediaUrl}
+                            className="w-full h-full object-cover"
+                            controls={false}
+                            muted
+                          />
+                        ) : (
+                          <img
+                            src={proof.mediaUrl}
+                            alt={proof.caption || "Proof"}
+                            className="w-full h-full object-cover"
+                          />
+                        )
+                      ) : (
+                        <div className="w-full h-full bg-muted flex items-center justify-center">
+                          <ImageIcon className="h-8 w-8 text-muted-foreground" />
+                        </div>
+                      )}
+                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-2">
+                        <p className="text-xs text-white font-medium truncate">
+                          {proof.group.name}
+                        </p>
+                      </div>
+                    </div>
+                    {proof.caption && (
+                      <CardContent className="p-2">
+                        <p className="text-xs text-muted-foreground line-clamp-2">
+                          {proof.caption}
+                        </p>
+                      </CardContent>
+                    )}
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <Card>
+                <CardContent className="p-8 text-center">
+                  <ImageIcon className="h-12 w-12 text-muted-foreground/50 mx-auto mb-3" />
+                  <p className="text-muted-foreground">No proofs yet</p>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
 
           <TabsContent value="groups" className="mt-4">
             <Card>

@@ -30,6 +30,26 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             rulesCompletedCount: true,
           },
         },
+        proofs: {
+          where: { isPublic: true },
+          select: {
+            id: true,
+            caption: true,
+            mediaType: true,
+            mediaUrl: true,
+            createdAt: true,
+            group: {
+              select: { id: true, name: true },
+            },
+            ruleLinks: {
+              include: {
+                rule: { select: { description: true } },
+              },
+            },
+          },
+          orderBy: { createdAt: "desc" },
+          take: 20,
+        },
       },
     });
 
@@ -51,6 +71,26 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
               rulesCreatedCount: true,
               rulesCompletedCount: true,
             },
+          },
+          proofs: {
+            where: { isPublic: true },
+            select: {
+              id: true,
+              caption: true,
+              mediaType: true,
+              mediaUrl: true,
+              createdAt: true,
+              group: {
+                select: { id: true, name: true },
+              },
+              ruleLinks: {
+                include: {
+                  rule: { select: { description: true } },
+                },
+              },
+            },
+            orderBy: { createdAt: "desc" },
+            take: 20,
           },
         },
       });

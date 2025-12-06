@@ -16,7 +16,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     const { threadId } = await params;
     const { searchParams } = new URL(request.url);
-    const cursor = searchParams.get("cursor");
+    const cursorParam = searchParams.get("cursor");
+    const cursor = cursorParam && cursorParam.length > 0 ? cursorParam : null;
     const limit = parseInt(searchParams.get("limit") || "50");
 
     // Check if user is part of the thread
@@ -32,25 +33,38 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: "Not authorized" }, { status: 403 });
     }
 
-    const messages = await prisma.chatMessage.findMany({
+    // Build query options - avoid cursor if not provided
+    const queryOptions: {
+      where: { dmThreadId: string };
+      take: number;
+      skip?: number;
+      cursor?: { id: string };
+      orderBy: { createdAt: "desc" };
+      include: { sender: { select: { id: boolean; name: boolean; avatarUrl: boolean } } };
+    } = {
       where: { dmThreadId: threadId },
       take: limit,
-      skip: cursor ? 1 : 0,
-      cursor: cursor ? { id: cursor } : undefined,
-      orderBy: { createdAt: "desc" },
+      orderBy: { createdAt: "desc" as const },
       include: {
         sender: {
           select: { id: true, name: true, avatarUrl: true },
         },
       },
-    });
+    };
+
+    if (cursor) {
+      queryOptions.skip = 1;
+      queryOptions.cursor = { id: cursor };
+    }
+
+    const messages = await prisma.chatMessage.findMany(queryOptions);
 
     return NextResponse.json({
       messages: messages.reverse(),
       nextCursor: messages.length === limit ? messages[messages.length - 1]?.id : null,
     });
   } catch (error) {
-    console.error("Error fetching messages:", error);
+    console.error("Error fetching DM messages:", error);
     return NextResponse.json(
       { error: "Failed to fetch messages" },
       { status: 500 }
