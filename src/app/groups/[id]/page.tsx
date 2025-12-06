@@ -10,83 +10,102 @@ interface GroupPageProps {
 }
 
 export default async function GroupPage({ params }: GroupPageProps) {
+  console.log("[GroupPage] Starting...");
+  
   const session = await auth();
+  console.log("[GroupPage] Session:", session?.user?.id ? "authenticated" : "no session");
   
   if (!session?.user) {
     redirect("/auth/signin");
   }
 
   const { id } = await params;
+  console.log("[GroupPage] Group ID:", id);
 
   // First, just check if the group exists
-  const groupExists = await prisma.group.findUnique({
-    where: { id },
-    select: { id: true },
-  });
+  let groupExists;
+  try {
+    groupExists = await prisma.group.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+    console.log("[GroupPage] Group exists:", !!groupExists);
+  } catch (error) {
+    console.error("[GroupPage] Error checking group existence:", error);
+    throw error;
+  }
 
   if (!groupExists) {
     notFound();
   }
 
   // Now fetch the full group data
-  const group = await prisma.group.findUnique({
-    where: { id },
-    include: {
-      creator: {
-        select: {
-          id: true,
-          name: true,
-          username: true,
-          avatarUrl: true,
+  console.log("[GroupPage] Fetching full group data...");
+  let group;
+  try {
+    group = await prisma.group.findUnique({
+      where: { id },
+      include: {
+        creator: {
+          select: {
+            id: true,
+            name: true,
+            username: true,
+            avatarUrl: true,
+          },
         },
-      },
-      memberships: {
-        include: {
-          user: {
-            select: {
-              id: true,
-              name: true,
-              username: true,
-              avatarUrl: true,
-              upiId: true,
+        memberships: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                username: true,
+                avatarUrl: true,
+                upiId: true,
+              },
             },
           },
         },
-      },
-      rules: {
-        where: {
-          approved: true,
-        },
-        include: {
-          creator: {
-            select: {
-              id: true,
-              name: true,
-              avatarUrl: true,
-            },
+        rules: {
+          where: {
+            approved: true,
           },
-          approvals: true,
+          include: {
+            creator: {
+              select: {
+                id: true,
+                name: true,
+                avatarUrl: true,
+              },
+            },
+            approvals: true,
+          },
+          orderBy: {
+            createdAt: "asc",
+          },
         },
-        orderBy: {
-          createdAt: "asc",
+        joinRequests: {
+          where: {
+            userId: session.user.id,
+          },
+          select: {
+            id: true,
+            status: true,
+          },
+        },
+        _count: {
+          select: {
+            proofs: true,
+          },
         },
       },
-      joinRequests: {
-        where: {
-          userId: session.user.id,
-        },
-        select: {
-          id: true,
-          status: true,
-        },
-      },
-      _count: {
-        select: {
-          proofs: true,
-        },
-      },
-    },
-  });
+    });
+    console.log("[GroupPage] Full group data fetched:", !!group);
+  } catch (error) {
+    console.error("[GroupPage] Error fetching full group:", error);
+    throw error;
+  }
 
   if (!group) {
     notFound();
