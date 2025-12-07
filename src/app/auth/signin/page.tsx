@@ -1,7 +1,7 @@
 "use client";
 
-import { Suspense, useState } from "react";
-import { signIn } from "next-auth/react";
+import { Suspense, useState, useEffect } from "react";
+import { signIn, useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -15,12 +15,30 @@ import { Loader2 } from "lucide-react";
 function SignInForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { data: session, status } = useSession();
   const callbackUrl = searchParams?.get("callbackUrl") || "/home";
   
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+
+  // Redirect already authenticated users to callback URL
+  useEffect(() => {
+    if (session) {
+      router.push(callbackUrl);
+    }
+  }, [session, callbackUrl, router]);
+
+  // Show loading while checking auth status
+  if (status === "loading") {
+    return <SignInLoading />;
+  }
+
+  // Don't render form if already authenticated (will redirect)
+  if (session) {
+    return <SignInLoading />;
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
