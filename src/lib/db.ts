@@ -5,6 +5,7 @@ import { PrismaLibSql } from "@prisma/adapter-libsql";
 const getDatabaseConfig = () => {
   // Production: Use Turso
   if (process.env.TURSO_DATABASE_URL) {
+    console.log("Using Turso database:", process.env.TURSO_DATABASE_URL.substring(0, 30) + "...");
     return {
       url: process.env.TURSO_DATABASE_URL,
       authToken: process.env.TURSO_AUTH_TOKEN,
@@ -18,12 +19,20 @@ const getDatabaseConfig = () => {
     };
   }
   // Development: Use local SQLite file
+  console.log("Using local SQLite database");
   return { url: "file:./prisma/dev.db" };
 };
 
 const dbConfig = getDatabaseConfig();
 
-const adapter = new PrismaLibSql(dbConfig);
+// Create adapter - handle potential initialization errors
+let adapter: PrismaLibSql;
+try {
+  adapter = new PrismaLibSql(dbConfig);
+} catch (err) {
+  console.error("Failed to create Prisma adapter:", err);
+  throw new Error(`Failed to initialize database adapter: ${err instanceof Error ? err.message : "Unknown error"}`);
+}
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
