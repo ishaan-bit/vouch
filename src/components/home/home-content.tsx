@@ -42,6 +42,10 @@ interface Group {
     };
     isReady: boolean;
   }[];
+  rules: {
+    id: string;
+    creatorId: string;
+  }[];
   _count: {
     rules: number;
   };
@@ -264,13 +268,18 @@ export function HomeContent({ userId }: HomeContentProps) {
                 const totalMembers = group.memberships.length;
                 const isCreator = group.createdByUserId === userId;
                 const canStart = isCreator && membersWithRules >= 2 && membersWithRules === totalMembers;
+                // Check if current user has added their rule
+                const hasAddedRule = group.rules?.some(r => r.creatorId === userId) ?? false;
+                const needsToAddRule = !isCreator && !hasAddedRule;
                 
                 return (
                   <Link key={group.id} href={`/groups/${group.id}`}>
                     <div className={cn(
                       "rounded-2xl p-4 transition-all duration-300 group",
                       "bg-[var(--dusk-2)]/40 backdrop-blur-sm",
-                      "border border-dashed border-white/10",
+                      needsToAddRule 
+                        ? "border border-[var(--accent-gold)]/40 border-solid" 
+                        : "border border-dashed border-white/10",
                       "hover:border-[var(--accent-gold)]/30 hover:bg-[var(--dusk-2)]/60"
                     )}>
                       <div className="flex items-center justify-between">
@@ -279,6 +288,12 @@ export function HomeContent({ userId }: HomeContentProps) {
                           <p className="text-sm text-white/40 mt-1">
                             {membersWithRules}/{totalMembers} ready • {group.durationDays} days
                           </p>
+                          {needsToAddRule && (
+                            <p className="text-xs text-[var(--accent-gold)] mt-2 flex items-center gap-1 font-medium">
+                              <Plus className="w-3 h-3" />
+                              Add your rule to join the game
+                            </p>
+                          )}
                           {canStart && (
                             <p className="text-xs text-[var(--accent-teal)] mt-2 flex items-center gap-1">
                               <Zap className="w-3 h-3" />
@@ -289,10 +304,11 @@ export function HomeContent({ userId }: HomeContentProps) {
                         <div className="flex items-center gap-2 ml-3">
                           <span className={cn(
                             "text-xs px-2.5 py-1 rounded-full font-medium",
-                            "bg-[var(--accent-gold)]/15 text-[var(--accent-gold)]",
-                            "border border-[var(--accent-gold)]/20"
+                            needsToAddRule 
+                              ? "bg-[var(--accent-gold)]/25 text-[var(--accent-gold)] border border-[var(--accent-gold)]/40"
+                              : "bg-[var(--accent-gold)]/15 text-[var(--accent-gold)] border border-[var(--accent-gold)]/20"
                           )}>
-                            Planning
+                            {needsToAddRule ? "Action needed" : "Planning"}
                           </span>
                           <ChevronRight className="w-5 h-5 text-white/30 group-hover:text-[var(--accent-gold)] transition-colors" />
                         </div>

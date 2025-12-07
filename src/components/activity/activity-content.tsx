@@ -210,6 +210,18 @@ export function ActivityContent({ userId }: ActivityContentProps) {
                 <ArrowRight className="h-4 w-4" />
               </Link>
             )}
+
+            {/* Group invite link - deep link to pact for invited members */}
+            {notification.type === "GROUP_INVITE" && notification.data && (notification.data.groupId as string) && (
+              <Link 
+                href={`/groups/${notification.data.groupId}`}
+                className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-[var(--accent-gold)] hover:text-[var(--accent-gold)]/80 transition-colors"
+                onClick={(e) => e.stopPropagation()}
+              >
+                Add your rule
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            )}
           </div>
           {!notification.isRead && (
             <div className="h-2 w-2 rounded-full bg-[var(--accent-magenta)] animate-pulse" />

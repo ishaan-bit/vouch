@@ -32,6 +32,12 @@ export async function GET() {
             },
           },
         },
+        rules: {
+          select: {
+            id: true,
+            creatorId: true,
+          },
+        },
         _count: {
           select: {
             rules: true,

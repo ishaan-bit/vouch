@@ -107,9 +107,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         data: validUserIds.map((userId) => ({
           userId,
           type: "GROUP_INVITE" as const,
-          title: "Pact Invitation",
-          message: `${session.user.name || "Someone"} invited you to join "${group.name}"`,
-          data: { groupId },
+          title: "You've been added to a pact!",
+          message: `${session.user.name || "Someone"} added you to "${group.name}". Add your rule to join the game.`,
+          data: { groupId, creatorId: session.user.id, groupName: group.name },
         })),
       });
     });
