@@ -40,6 +40,7 @@ import {
   Settings,
   ChevronRight,
   ImageIcon,
+  LogOut,
 } from "lucide-react";
 
 // Types
@@ -248,6 +249,29 @@ export function GroupDetailContent({ group, currentUserId, pendingJoinRequests =
     },
   });
 
+  // Leave pact mutation (for non-creator members during planning)
+  const leavePactMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/groups/${group.id}/leave`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to leave pact");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast.success("You have left the pact");
+      queryClient.invalidateQueries({ queryKey: ["groups"] });
+      queryClient.invalidateQueries({ queryKey: ["discover-pacts"] });
+      router.push("/");
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+
   const formatAmount = (paise: number) => {
     return `₹${(paise / 100).toLocaleString("en-IN")}`;
   };
@@ -425,6 +449,35 @@ export function GroupDetailContent({ group, currentUserId, pendingJoinRequests =
               </button>
             </div>
           </div>
+        )}
+
+        {/* Leave Pact Option (for non-creator members during planning) */}
+        {group.status === "PLANNING" && group.createdByUserId !== currentUserId && (
+          <button
+            onClick={() => {
+              if (window.confirm("Are you sure you want to leave this pact? Your rule will be deleted.")) {
+                leavePactMutation.mutate();
+              }
+            }}
+            disabled={leavePactMutation.isPending}
+            className={cn(
+              "mb-5 w-full p-4 rounded-2xl text-left",
+              "bg-[var(--dusk-2)]/60 hover:bg-[var(--dusk-2)]",
+              "border border-white/[0.06] hover:border-red-500/30",
+              "transition-all group"
+            )}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center group-hover:bg-red-500/20 transition-colors">
+                <LogOut className="w-5 h-5 text-red-400" />
+              </div>
+              <div className="flex-1">
+                <p className="font-medium text-white/80 group-hover:text-red-400 transition-colors">Leave Pact</p>
+                <p className="text-xs text-white/40">Exit before the challenge starts</p>
+              </div>
+              {leavePactMutation.isPending && <Loader2 className="w-5 h-5 animate-spin text-white/50" />}
+            </div>
+          </button>
         )}
 
         {/* Join Requests Alert (Creator only) */}

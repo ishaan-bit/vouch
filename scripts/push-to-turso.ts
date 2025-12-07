@@ -283,11 +283,13 @@ const statements: string[] = [
   )`,
 
   // ProofRuleLink table
-  `CREATE TABLE IF NOT EXISTS "ProofRuleLink" (
+  `DROP TABLE IF EXISTS "ProofRuleLink"`,
+  `CREATE TABLE "ProofRuleLink" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "proofId" TEXT NOT NULL,
     "ruleId" TEXT NOT NULL,
-    CONSTRAINT "ProofRuleLink_proofId_fkey" FOREIGN KEY ("proofId") REFERENCES "Proof" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    CONSTRAINT "ProofRuleLink_proofId_fkey" FOREIGN KEY ("proofId") REFERENCES "Proof" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "ProofRuleLink_ruleId_fkey" FOREIGN KEY ("ruleId") REFERENCES "Rule" ("id") ON DELETE CASCADE ON UPDATE CASCADE
   )`,
   `CREATE UNIQUE INDEX IF NOT EXISTS "ProofRuleLink_proofId_ruleId_key" ON "ProofRuleLink"("proofId", "ruleId")`,
 

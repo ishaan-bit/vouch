@@ -100,6 +100,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
+    // Ensure proofs array exists (defensive)
+    if (!user.proofs) {
+      user = { ...user, proofs: [] };
+    }
+
     // Determine friendship status
     let friendshipStatus: "none" | "pending-sent" | "pending-received" | "friends" = "none";
     let friendshipId: string | undefined;
