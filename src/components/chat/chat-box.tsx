@@ -88,6 +88,8 @@ export function ChatBox({ type, id, recipientId }: ChatBoxProps) {
 
   // Upload file to server
   const uploadFile = async (file: File): Promise<string> => {
+    console.log("[uploadFile] Starting upload for:", file.name, file.type, file.size);
+    
     const formData = new FormData();
     formData.append("file", file);
 
@@ -96,13 +98,17 @@ export function ChatBox({ type, id, recipientId }: ChatBoxProps) {
       body: formData,
     });
 
+    console.log("[uploadFile] Response status:", res.status, res.ok);
+
     if (!res.ok) {
       const data = await res.json();
+      console.error("[uploadFile] Upload failed:", data);
       throw new Error(data.error || "Upload failed");
     }
 
-    const { url } = await res.json();
-    return url;
+    const data = await res.json();
+    console.log("[uploadFile] Upload response:", data);
+    return data.url;
   };
 
   // Send message mutation
@@ -156,24 +162,33 @@ export function ChatBox({ type, id, recipientId }: ChatBoxProps) {
 
       // Handle file upload
       if (selectedFile) {
+        console.log("[ChatBox] Uploading file:", selectedFile.name, selectedFile.type);
         mediaUrl = await uploadFile(selectedFile);
+        console.log("[ChatBox] Upload successful, URL:", mediaUrl);
         sendMediaType = mediaType || "IMAGE";
       }
 
       // Handle audio blob
       if (audioBlob) {
+        console.log("[ChatBox] Uploading audio blob");
         const audioFile = new File([audioBlob], `audio-${Date.now()}.webm`, { type: "audio/webm" });
         mediaUrl = await uploadFile(audioFile);
+        console.log("[ChatBox] Audio upload successful, URL:", mediaUrl);
         sendMediaType = "AUDIO";
       }
 
+      console.log("[ChatBox] Sending message with:", { content: message.trim() || undefined, mediaUrl, mediaType: sendMediaType });
+      
       await sendMutation.mutateAsync({
         content: message.trim() || undefined,
         mediaUrl,
         mediaType: sendMediaType,
       });
+      
+      console.log("[ChatBox] Message sent successfully");
     } catch (error) {
-      toast.error("Failed to send message");
+      console.error("[ChatBox] Error sending message:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to send message");
     } finally {
       setIsUploading(false);
     }

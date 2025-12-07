@@ -95,7 +95,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const body = await request.json();
     const { content, mediaUrl, mediaType } = body;
 
+    console.log("[DM POST] Received:", { threadId, content: content?.substring(0, 50), mediaUrl, mediaType });
+
     if (!content && !mediaUrl) {
+      console.log("[DM POST] Validation failed: no content or mediaUrl");
       return NextResponse.json({ error: "Message content or media required" }, { status: 400 });
     }
 
@@ -113,6 +116,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     // Create message
+    console.log("[DM POST] Creating message with:", { dmThreadId: threadId, senderId: session.user.id, type: mediaUrl ? "MEDIA" : "TEXT", content: content || "", mediaUrl: mediaUrl || null });
+    
     const message = await prisma.chatMessage.create({
       data: {
         dmThreadId: threadId,
@@ -127,6 +132,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         },
       },
     });
+
+    console.log("[DM POST] Message created:", message.id);
 
     return NextResponse.json({
       ...message,
