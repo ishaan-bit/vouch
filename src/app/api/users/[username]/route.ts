@@ -37,6 +37,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             caption: true,
             mediaType: true,
             mediaUrl: true,
+            textContent: true,
             createdAt: true,
             group: {
               select: { id: true, name: true },
@@ -48,7 +49,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             },
           },
           orderBy: { createdAt: "desc" },
-          take: 20,
+          take: 50,
         },
       },
     });
@@ -79,6 +80,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
               caption: true,
               mediaType: true,
               mediaUrl: true,
+              textContent: true,
               createdAt: true,
               group: {
                 select: { id: true, name: true },
@@ -90,7 +92,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
               },
             },
             orderBy: { createdAt: "desc" },
-            take: 20,
+            take: 50,
           },
         },
       });

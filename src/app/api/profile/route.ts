@@ -26,8 +26,18 @@ export async function GET() {
         },
         proofs: {
           where: { isPublic: true },
+          include: {
+            group: {
+              select: { id: true, name: true },
+            },
+            ruleLinks: {
+              include: {
+                rule: { select: { description: true } },
+              },
+            },
+          },
           orderBy: { createdAt: "desc" },
-          take: 20,
+          take: 50,
         },
       },
     });

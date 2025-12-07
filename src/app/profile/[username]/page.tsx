@@ -33,6 +33,7 @@ interface Proof {
   caption: string | null;
   mediaType: string;
   mediaUrl: string | null;
+  textContent: string | null;
   createdAt: string;
   group: { id: string; name: string };
   ruleLinks: { rule: { description: string } }[];
@@ -316,6 +317,13 @@ export default function UserProfilePage({ params }: UserProfilePageProps) {
                             }}
                           />
                         )
+                      ) : (proof.mediaType === "TEXT" || proof.mediaType === "text") && proof.textContent ? (
+                        // Text proof display
+                        <div className="w-full h-full bg-gradient-to-br from-violet-500/20 to-pink-500/20 flex items-center justify-center p-3">
+                          <p className="text-sm text-center line-clamp-5 leading-relaxed">
+                            {proof.textContent}
+                          </p>
+                        </div>
                       ) : (
                         <div className="w-full h-full bg-muted flex items-center justify-center">
                           <ImageIcon className="h-8 w-8 text-muted-foreground" />
@@ -327,10 +335,10 @@ export default function UserProfilePage({ params }: UserProfilePageProps) {
                         </p>
                       </div>
                     </div>
-                    {proof.caption && (
+                    {(proof.caption || proof.textContent) && (
                       <CardContent className="p-2">
                         <p className="text-xs text-muted-foreground line-clamp-2">
-                          {proof.caption}
+                          {proof.caption || proof.textContent}
                         </p>
                       </CardContent>
                     )}

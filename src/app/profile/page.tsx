@@ -28,7 +28,7 @@ export default async function ProfilePage() {
           },
         },
         orderBy: { createdAt: "desc" },
-        take: 20,
+        take: 50,
       },
       createdRules: {
         include: {

@@ -57,6 +57,7 @@ interface Proof {
   caption: string | null;
   mediaType: string;
   mediaUrl: string | null;
+  textContent: string | null;
   createdAt: string | Date;
   group: { id: string; name: string };
   ruleLinks: { rule: { description: string } }[];
@@ -498,13 +499,20 @@ export function ProfileContent({ user, friends, isOwnProfile }: ProfileContentPr
                             e.currentTarget.style.display = 'none';
                           }}
                         />
+                      ) : (proof.mediaType === "TEXT" || proof.mediaType === "text") && proof.textContent ? (
+                        // Text proof display
+                        <div className="flex h-full items-center justify-center p-3 bg-gradient-to-br from-[var(--accent-violet)]/20 to-[var(--accent-magenta)]/20">
+                          <p className="text-white text-xs text-center line-clamp-5 leading-relaxed">
+                            {proof.textContent}
+                          </p>
+                        </div>
                       ) : (
                         <div className="flex h-full items-center justify-center text-slate-600">
                           <Camera className="h-8 w-8" />
                         </div>
                       )}
                       <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
-                        <p className="text-white text-xs line-clamp-2">{proof.caption || proof.group.name}</p>
+                        <p className="text-white text-xs line-clamp-2">{proof.caption || proof.textContent || proof.group.name}</p>
                       </div>
                     </div>
                   ))}
