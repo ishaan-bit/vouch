@@ -41,6 +41,7 @@ const BottomSheetContent = React.forwardRef<
     <BottomSheetOverlay />
     <DialogPrimitive.Content
       ref={ref}
+      aria-describedby={undefined}
       className={cn(
         // Base styles
         "fixed z-50 w-full bg-[var(--dusk-1)] border-t border-white/10",
