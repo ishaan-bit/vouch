@@ -243,59 +243,26 @@ const statements: string[] = [
     CONSTRAINT "Notification_groupId_fkey" FOREIGN KEY ("groupId") REFERENCES "Group" ("id") ON DELETE SET NULL ON UPDATE CASCADE
   )`,
 
-  // ChatRoom table
-  `CREATE TABLE IF NOT EXISTS "ChatRoom" (
-    "id" TEXT NOT NULL PRIMARY KEY,
-    "type" TEXT NOT NULL DEFAULT 'GROUP',
-    "groupId" TEXT UNIQUE,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "ChatRoom_groupId_fkey" FOREIGN KEY ("groupId") REFERENCES "Group" ("id") ON DELETE CASCADE ON UPDATE CASCADE
-  )`,
+  // Drop old tables that no longer exist in schema
+  `DROP TABLE IF EXISTS "ChatRoom"`,
+  `DROP TABLE IF EXISTS "ChatRoomParticipant"`,
+  `DROP TABLE IF EXISTS "MessageReaction"`,
 
-  // ChatMessage table - drop and recreate
+  // ChatMessage table - recreate with correct schema
   `DROP TABLE IF EXISTS "ChatMessage"`,
   `CREATE TABLE "ChatMessage" (
     "id" TEXT NOT NULL PRIMARY KEY,
-    "content" TEXT NOT NULL,
-    "type" TEXT NOT NULL DEFAULT 'TEXT',
-    "roomId" TEXT NOT NULL,
+    "groupId" TEXT,
+    "dmThreadId" TEXT,
     "senderId" TEXT NOT NULL,
-    "replyToId" TEXT,
+    "content" TEXT NOT NULL,
+    "mediaUrl" TEXT,
+    "type" TEXT NOT NULL DEFAULT 'TEXT',
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "editedAt" DATETIME,
-    "deletedAt" DATETIME,
-    CONSTRAINT "ChatMessage_roomId_fkey" FOREIGN KEY ("roomId") REFERENCES "ChatRoom" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT "ChatMessage_senderId_fkey" FOREIGN KEY ("senderId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT "ChatMessage_replyToId_fkey" FOREIGN KEY ("replyToId") REFERENCES "ChatMessage" ("id") ON DELETE SET NULL ON UPDATE CASCADE
+    CONSTRAINT "ChatMessage_groupId_fkey" FOREIGN KEY ("groupId") REFERENCES "Group" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "ChatMessage_dmThreadId_fkey" FOREIGN KEY ("dmThreadId") REFERENCES "DmThread" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "ChatMessage_senderId_fkey" FOREIGN KEY ("senderId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
   )`,
-
-  // ChatRoomParticipant table - drop and recreate
-  `DROP TABLE IF EXISTS "ChatRoomParticipant"`,
-  `CREATE TABLE "ChatRoomParticipant" (
-    "id" TEXT NOT NULL PRIMARY KEY,
-    "roomId" TEXT NOT NULL,
-    "userId" TEXT NOT NULL,
-    "lastReadAt" DATETIME,
-    "joinedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "ChatRoomParticipant_roomId_fkey" FOREIGN KEY ("roomId") REFERENCES "ChatRoom" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT "ChatRoomParticipant_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
-  )`,
-  `CREATE UNIQUE INDEX IF NOT EXISTS "ChatRoomParticipant_roomId_userId_key" ON "ChatRoomParticipant"("roomId", "userId")`,
-
-  // MessageReaction table - drop and recreate
-  `DROP TABLE IF EXISTS "MessageReaction"`,
-  `CREATE TABLE "MessageReaction" (
-    "id" TEXT NOT NULL PRIMARY KEY,
-    "emoji" TEXT NOT NULL,
-    "messageId" TEXT NOT NULL,
-    "userId" TEXT NOT NULL,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "MessageReaction_messageId_fkey" FOREIGN KEY ("messageId") REFERENCES "ChatMessage" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT "MessageReaction_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
-  )`,
-  `CREATE UNIQUE INDEX IF NOT EXISTS "MessageReaction_messageId_userId_emoji_key" ON "MessageReaction"("messageId", "userId", "emoji")`,
 
   // Proof table
   `CREATE TABLE IF NOT EXISTS "Proof" (
