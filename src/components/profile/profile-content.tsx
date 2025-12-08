@@ -587,7 +587,7 @@ export function ProfileContent({ user, friends, isOwnProfile }: ProfileContentPr
             <TabsContent value="friends" className="mt-4 space-y-3">
               {friends.length > 0 ? (
                 friends.map((friend) => (
-                  <Link key={friend.id} href={`/profile/${friend.username}`}>
+                  <Link key={friend.id} href={`/profile/${friend.username || friend.id}`}>
                     <div className="flex items-center gap-3 p-4 rounded-2xl bg-slate-900/50 border border-slate-800/50 hover:border-violet-500/30 transition-all group">
                       <Avatar className="h-12 w-12 border border-slate-700">
                         <AvatarImage src={friend.avatarUrl || undefined} />

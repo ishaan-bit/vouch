@@ -65,6 +65,9 @@ model User {
 
   // Notifications
   notifications Notification[]
+
+  // Vouch for a Cause
+  causeLosses CauseLoss[]
 }
 
 model Account {
@@ -181,6 +184,7 @@ model Group {
   callSessions CallSession[]
   paymentObligations PaymentObligation[]
   joinRequests JoinRequest[]
+  causeLosses CauseLoss[]
 }
 
 enum MemberRole {
@@ -250,6 +254,7 @@ model Rule {
   votes       RuleVote[]
   obligations PaymentObligation[]
   joinRequest JoinRequest?
+  causeLosses CauseLoss[]
 }
 
 model RuleApproval {
@@ -457,6 +462,7 @@ enum NotificationType {
   PAYMENT_DUE
   GROUP_STARTED
   CYCLE_ENDED
+  CAUSE_LOSS_PROMPT
   OTHER
 }
 
@@ -471,4 +477,32 @@ model Notification {
   createdAt DateTime         @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ============================================
+// VOUCH FOR A CAUSE
+// ============================================
+
+enum CauseLossStatus {
+  PLEDGED    // User has been prompted to donate
+  DONATED    // User logged their donation
+  SKIPPED    // User chose not to donate
+}
+
+model CauseLoss {
+  id        String           @id @default(cuid())
+  userId    String
+  groupId   String?          // Pact where the loss occurred
+  cycleId   String?          // Cycle number (optional)
+  ruleId    String?          // Rule that was failed (optional)
+  amount    Int              // Amount in paise
+  status    CauseLossStatus  @default(PLEDGED)
+  note      String?          // User's reflection / where they donated
+  proofUrl  String?          // Optional receipt/photo URL
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group Group? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  rule  Rule?  @relation(fields: [ruleId], references: [id], onDelete: SetNull)
 }

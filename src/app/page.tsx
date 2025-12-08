@@ -4,6 +4,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { PactHeroVisual, FeatureCard, DustParticles, VouchLogo } from "@/components/vouch";
+import { IntroSplashWrapper } from "@/components/intro/intro-splash";
 
 export default function LandingPage() {
   const { data: session, status } = useSession();
@@ -51,6 +52,7 @@ export default function LandingPage() {
   }
 
   return (
+    <IntroSplashWrapper>
     <div className="relative min-h-screen overflow-hidden">
       {/* Deep dusk gradient background */}
       <div
@@ -244,5 +246,6 @@ export default function LandingPage() {
       </main>
 
     </div>
+    </IntroSplashWrapper>
   );
 }

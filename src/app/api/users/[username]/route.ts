@@ -6,11 +6,21 @@ interface RouteParams {
   params: Promise<{ username: string }>;
 }
 
+// Canonical profile route: /profile/[username]
+// API: /api/users/[username] - accepts username or user ID
 // GET /api/users/[username] - Get user profile by username or ID
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const session = await auth();
     const { username } = await params;
+
+    // Validate username param - reject null, undefined, empty, or literal "null" string
+    if (!username || username === "null" || username === "undefined" || username.trim() === "") {
+      return NextResponse.json(
+        { error: "Invalid username or ID" },
+        { status: 400 }
+      );
+    }
 
     // Try to find user by username first, then by ID
     let user = await prisma.user.findUnique({

@@ -58,11 +58,16 @@ interface UserProfile {
   mutualFriends: number;
 }
 
+// Canonical profile route: /profile/[username]
+// API: /api/users/[username]
 export default function UserProfilePage({ params }: UserProfilePageProps) {
   const { username } = use(params);
   const { data: session } = useSession();
   const router = useRouter();
   const queryClient = useQueryClient();
+
+  // Validate username - must be defined and not the string "null" or "undefined"
+  const isValidUsername = Boolean(username && username !== "null" && username !== "undefined" && username.trim() !== "");
 
   const { data: profile, isLoading } = useQuery<UserProfile>({
     queryKey: ["user-profile", username],
@@ -71,6 +76,8 @@ export default function UserProfilePage({ params }: UserProfilePageProps) {
       if (!res.ok) throw new Error("Failed to fetch profile");
       return res.json();
     },
+    // Only run query if username is valid
+    enabled: isValidUsername,
   });
 
   const sendRequestMutation = useMutation({
@@ -113,6 +120,19 @@ export default function UserProfilePage({ params }: UserProfilePageProps) {
       toast.error("Failed to respond to request");
     },
   });
+
+  // Handle invalid username early
+  if (!isValidUsername) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen">
+        <p className="text-lg font-medium">Invalid profile link</p>
+        <p className="text-sm text-muted-foreground mt-1">The profile URL is malformed</p>
+        <Button variant="link" onClick={() => router.back()}>
+          Go back
+        </Button>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (

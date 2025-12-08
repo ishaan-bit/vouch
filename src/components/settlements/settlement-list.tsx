@@ -31,11 +31,17 @@ interface Obligation {
   createdAt: string;
 }
 
+// API response type
+interface ObligationsResponse {
+  owed: Obligation[];
+  receiving: Obligation[];
+}
+
 export function SettlementList() {
   const { data: session } = useSession();
   const queryClient = useQueryClient();
 
-  const { data: obligations, isLoading } = useQuery<Obligation[]>({
+  const { data: obligationsData, isLoading, error } = useQuery<ObligationsResponse>({
     queryKey: ["obligations", "me"],
     queryFn: async () => {
       const res = await fetch("/api/payments/obligations/me");
@@ -95,10 +101,19 @@ export function SettlementList() {
     );
   }
 
-  const youOwe =
-    obligations?.filter((o) => o.fromUser.id === session?.user?.id) || [];
-  const owedToYou =
-    obligations?.filter((o) => o.toUser.id === session?.user?.id) || [];
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center p-12 text-center">
+        <AlertCircle className="h-8 w-8 text-red-400 mb-2" />
+        <p className="text-red-400">Failed to load settlements</p>
+        <p className="text-sm text-gray-500 mt-1">Please try again later</p>
+      </div>
+    );
+  }
+
+  // Safely extract arrays from the response, with defensive defaults
+  const youOwe = Array.isArray(obligationsData?.owed) ? obligationsData.owed : [];
+  const owedToYou = Array.isArray(obligationsData?.receiving) ? obligationsData.receiving : [];
 
   const totalYouOwe = youOwe.reduce((sum, o) => sum + o.amount, 0);
   const totalOwedToYou = owedToYou.reduce((sum, o) => sum + o.amount, 0);
