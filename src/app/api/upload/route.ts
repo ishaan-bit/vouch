@@ -25,9 +25,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Check if Vercel Blob is configured
-    if (!process.env.BLOB_READ_WRITE_TOKEN) {
-      console.error("BLOB_READ_WRITE_TOKEN not configured");
+    // Check if Vercel Blob is configured (support both env var names)
+    const blobToken = process.env.BLOB_READ_WRITE_TOKEN || process.env.blobs_READ_WRITE_TOKEN;
+    if (!blobToken) {
+      console.error("BLOB_READ_WRITE_TOKEN / blobs_READ_WRITE_TOKEN not configured");
       return NextResponse.json(
         { error: "File storage not configured. Please contact support." },
         { status: 503 }
@@ -71,10 +72,11 @@ export async function POST(request: Request) {
     const ext = file.name.split(".").pop() || "bin";
     const filename = `${folder}/${session.user.id}/${Date.now()}.${ext}`;
 
-    // Upload to Vercel Blob
+    // Upload to Vercel Blob (pass token explicitly to support both env var names)
     const blob = await put(filename, file, {
       access: "public",
       addRandomSuffix: true,
+      token: blobToken,
     });
 
     return NextResponse.json({ url: blob.url }, { status: 201 });
