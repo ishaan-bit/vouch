@@ -29,6 +29,7 @@ import {
   Pause,
   Square,
   Clock,
+  Image as ImageIcon,
 } from "lucide-react";
 
 interface Rule {
@@ -66,6 +67,7 @@ export function AddProofDialog({
 }: AddProofDialogProps) {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
 
@@ -170,11 +172,14 @@ export function AddProofDialog({
 
     setFile(selectedFile);
 
-    // Create preview for images
+    // Create preview for images and videos
     if (selectedFile.type.startsWith("image/")) {
       const reader = new FileReader();
       reader.onload = (e) => setFilePreview(e.target?.result as string);
       reader.readAsDataURL(selectedFile);
+    } else if (selectedFile.type.startsWith("video/")) {
+      // Create object URL for video preview
+      setFilePreview(URL.createObjectURL(selectedFile));
     } else {
       setFilePreview(null);
     }
@@ -369,10 +374,19 @@ export function AddProofDialog({
                   Upload {mediaType === "IMAGE" ? "Photo" : "Video"}
                 </Label>
 
+                {/* Hidden file inputs - one for gallery, one for camera */}
                 <input
                   ref={fileInputRef}
                   type="file"
                   accept={mediaType === "IMAGE" ? "image/*" : "video/*"}
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+                <input
+                  ref={cameraInputRef}
+                  type="file"
+                  accept={mediaType === "IMAGE" ? "image/*" : "video/*"}
+                  capture="environment"
                   onChange={handleFileSelect}
                   className="hidden"
                 />
@@ -383,6 +397,12 @@ export function AddProofDialog({
                       <img
                         src={filePreview}
                         alt="Preview"
+                        className="w-full h-48 object-cover"
+                      />
+                    ) : filePreview && mediaType === "VIDEO" ? (
+                      <video
+                        src={filePreview}
+                        controls
                         className="w-full h-48 object-cover"
                       />
                     ) : (
@@ -399,6 +419,10 @@ export function AddProofDialog({
                     <button
                       type="button"
                       onClick={() => {
+                        // Revoke object URL to prevent memory leaks
+                        if (filePreview && mediaType === "VIDEO") {
+                          URL.revokeObjectURL(filePreview);
+                        }
                         setFile(null);
                         setFilePreview(null);
                       }}
@@ -408,18 +432,41 @@ export function AddProofDialog({
                     </button>
                   </div>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full h-32 rounded-2xl border-2 border-dashed border-slate-700 hover:border-violet-500/50 bg-slate-800/30 flex flex-col items-center justify-center gap-2 transition-colors"
-                  >
-                    <Upload className="h-8 w-8 text-slate-500" />
-                    <span className="text-sm text-slate-400">
-                      Click to upload {mediaType.toLowerCase()}
-                    </span>
-                    <span className="text-xs text-slate-500">Max 50MB</span>
-                  </button>
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* Camera capture button */}
+                    <button
+                      type="button"
+                      onClick={() => cameraInputRef.current?.click()}
+                      className="h-28 rounded-2xl border-2 border-dashed border-violet-500/50 hover:border-violet-500 bg-violet-500/10 hover:bg-violet-500/20 flex flex-col items-center justify-center gap-2 transition-all"
+                    >
+                      <div className="w-10 h-10 rounded-full bg-violet-500/30 flex items-center justify-center">
+                        <Camera className="h-5 w-5 text-violet-400" />
+                      </div>
+                      <span className="text-sm text-violet-300 font-medium">
+                        {mediaType === "IMAGE" ? "Take Photo" : "Record Video"}
+                      </span>
+                    </button>
+                    
+                    {/* Gallery/file upload button */}
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="h-28 rounded-2xl border-2 border-dashed border-slate-700 hover:border-slate-500 bg-slate-800/30 hover:bg-slate-800/50 flex flex-col items-center justify-center gap-2 transition-all"
+                    >
+                      <div className="w-10 h-10 rounded-full bg-slate-700/50 flex items-center justify-center">
+                        {mediaType === "IMAGE" ? (
+                          <ImageIcon className="h-5 w-5 text-slate-400" />
+                        ) : (
+                          <Upload className="h-5 w-5 text-slate-400" />
+                        )}
+                      </div>
+                      <span className="text-sm text-slate-400">
+                        From Gallery
+                      </span>
+                    </button>
+                  </div>
                 )}
+                <p className="text-xs text-slate-500 text-center">Max 50MB</p>
 
                 {/* Caption */}
                 <div className="space-y-2">
