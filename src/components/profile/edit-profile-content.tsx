@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { ArrowLeft, Camera, Loader2, Save, User } from "lucide-react";
+import { ArrowLeft, Camera, Loader2, Save, User, ScrollText, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 
@@ -301,6 +301,24 @@ export function EditProfileContent({ userId }: EditProfileContentProps) {
           <p className="text-xs text-white/40">
             Used for receiving stake winnings
           </p>
+        </div>
+
+        {/* Rules of Vouch Club */}
+        <div className="pt-4 border-t border-white/10">
+          <Link href="/rules" className="block">
+            <div className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-red-900/20 to-amber-900/20 border border-amber-900/20 hover:from-red-900/30 hover:to-amber-900/30 transition-colors">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-amber-900/30 flex items-center justify-center">
+                  <ScrollText className="h-5 w-5 text-amber-500" />
+                </div>
+                <div>
+                  <p className="font-medium text-amber-100">Rules of Vouch Club</p>
+                  <p className="text-xs text-amber-500/70">The 8 rules you live by</p>
+                </div>
+              </div>
+              <ChevronRight className="h-5 w-5 text-amber-500/50" />
+            </div>
+          </Link>
         </div>
 
         {/* Submit */}

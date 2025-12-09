@@ -24,6 +24,7 @@ model User {
   avatarUrl     String?
   bio           String?
   upiId         String?   // e.g., user@upi
+  hasAcceptedVouchRules Boolean @default(false) // Rules of Vouch Club acceptance
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
