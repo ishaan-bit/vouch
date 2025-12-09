@@ -26,11 +26,11 @@ export async function POST(request: Request, { params }: RouteParams) {
       );
     }
 
-    // Validate stake amount (100-10000 rupees in paise)
+    // Validate stake amount (1-10000 rupees in paise)
     const stake = parseInt(stakeAmount);
-    if (isNaN(stake) || stake < 10000 || stake > 1000000) {
+    if (isNaN(stake) || stake < 100 || stake > 1000000) {
       return NextResponse.json(
-        { error: "Stake must be between ₹100 and ₹10,000" },
+        { error: "Stake must be between ₹1 and ₹10,000" },
         { status: 400 }
       );
     }

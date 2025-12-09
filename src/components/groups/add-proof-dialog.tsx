@@ -198,13 +198,20 @@ export function AddProofDialog({
         body: formData,
       });
 
+      // Get response text first, then try to parse as JSON
+      const text = await res.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error(`Upload failed: ${text || "Unknown error"}`);
+      }
+
       if (!res.ok) {
-        const data = await res.json();
         throw new Error(data.error || "Upload failed");
       }
 
-      const { url } = await res.json();
-      return url;
+      return data.url;
     } catch (error) {
       console.error("Upload error:", error);
       throw error;

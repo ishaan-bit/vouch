@@ -21,7 +21,7 @@ interface AddRuleDialogProps {
   groupId: string;
 }
 
-const STAKE_PRESETS = [50, 100, 500, 1000, 2000];
+const STAKE_PRESETS = [1, 10, 50, 100, 500, 1000, 2000];
 const MIN_STAKE = 1;
 const MAX_STAKE = 100000;
 

@@ -139,11 +139,20 @@ export function ProfileContent({ user, friends, isOwnProfile }: ProfileContentPr
         body: formData,
       });
       
+      // Get response text first, then try to parse as JSON
+      const uploadText = await uploadRes.text();
+      let uploadData;
+      try {
+        uploadData = JSON.parse(uploadText);
+      } catch {
+        throw new Error(`Upload failed: ${uploadText || "Unknown error"}`);
+      }
+      
       if (!uploadRes.ok) {
-        throw new Error("Failed to upload image");
+        throw new Error(uploadData.error || "Failed to upload image");
       }
 
-      const { url } = await uploadRes.json();
+      const url = uploadData.url;
 
       // Update user profile with new avatar
       const updateRes = await fetch("/api/profile", {

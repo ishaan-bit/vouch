@@ -1,11 +1,24 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Camera, FileText, Link as LinkIcon, Mic, Video, Flame, ThumbsUp, Skull } from "lucide-react";
+import { Camera, FileText, Link as LinkIcon, Mic, Video, Flame, ThumbsUp, Skull, Trash2, Loader2 } from "lucide-react";
+import { ProofMediaViewer } from "./proof-media-viewer";
+import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface GroupMember {
   user: {
@@ -67,12 +80,44 @@ const reactionEmojis = [
 ];
 
 export function ProofFeed({ groupId, dayIndex, members, currentUserId }: ProofFeedProps) {
+  const queryClient = useQueryClient();
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerMedia, setViewerMedia] = useState<{
+    url: string;
+    type: "IMAGE" | "VIDEO" | "AUDIO";
+    caption?: string | null;
+    uploaderName?: string;
+  } | null>(null);
+  const [deleteProofId, setDeleteProofId] = useState<string | null>(null);
+
   const { data: proofs, isLoading } = useQuery<Proof[]>({
     queryKey: ["proofs", groupId, dayIndex],
     queryFn: async () => {
       const res = await fetch(`/api/groups/${groupId}/proofs?day=${dayIndex}`);
       if (!res.ok) throw new Error("Failed to fetch proofs");
       return res.json();
+    },
+  });
+
+  // Delete proof mutation
+  const deleteProofMutation = useMutation({
+    mutationFn: async (proofId: string) => {
+      const res = await fetch(`/api/proofs/${proofId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to delete proof");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast.success("Proof deleted");
+      queryClient.invalidateQueries({ queryKey: ["proofs", groupId] });
+      setDeleteProofId(null);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
     },
   });
 
@@ -134,21 +179,67 @@ export function ProofFeed({ groupId, dayIndex, members, currentUserId }: ProofFe
                     >
                       {/* Media Preview */}
                       {proof.mediaUrl && proof.mediaType === "IMAGE" && (
-                        <div className="mb-3 overflow-hidden rounded-lg">
+                        <div 
+                          className="mb-3 overflow-hidden rounded-lg cursor-pointer"
+                          onClick={() => {
+                            setViewerMedia({
+                              url: proof.mediaUrl!,
+                              type: "IMAGE",
+                              caption: proof.caption,
+                              uploaderName: member.user.name || undefined,
+                            });
+                            setViewerOpen(true);
+                          }}
+                        >
                           <img
                             src={proof.mediaUrl}
                             alt="Proof"
-                            className="w-full h-48 object-cover"
+                            className="w-full h-48 object-cover hover:opacity-90 transition-opacity"
                           />
                         </div>
                       )}
                       {proof.mediaUrl && proof.mediaType === "VIDEO" && (
-                        <div className="mb-3 overflow-hidden rounded-lg">
+                        <div 
+                          className="mb-3 overflow-hidden rounded-lg cursor-pointer relative group"
+                          onClick={() => {
+                            setViewerMedia({
+                              url: proof.mediaUrl!,
+                              type: "VIDEO",
+                              caption: proof.caption,
+                              uploaderName: member.user.name || undefined,
+                            });
+                            setViewerOpen(true);
+                          }}
+                        >
                           <video
                             src={proof.mediaUrl}
-                            controls
                             className="w-full h-48 object-cover"
+                            muted
                           />
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/40 transition-colors">
+                            <div className="w-12 h-12 rounded-full bg-white/90 flex items-center justify-center">
+                              <Video className="h-6 w-6 text-gray-700" />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      {proof.mediaUrl && proof.mediaType === "AUDIO" && (
+                        <div 
+                          className="mb-3 overflow-hidden rounded-lg cursor-pointer bg-gradient-to-r from-violet-500/20 to-purple-500/20 p-4 flex items-center gap-3 hover:from-violet-500/30 hover:to-purple-500/30 transition-colors"
+                          onClick={() => {
+                            setViewerMedia({
+                              url: proof.mediaUrl!,
+                              type: "AUDIO",
+                              caption: proof.caption,
+                              uploaderName: member.user.name || undefined,
+                            });
+                            setViewerOpen(true);
+                          }}
+                        >
+                          <div className="w-10 h-10 rounded-full bg-violet-500/30 flex items-center justify-center">
+                            <Mic className="h-5 w-5 text-violet-600" />
+                          </div>
+                          <span className="text-sm text-muted-foreground">Voice proof - tap to listen</span>
                         </div>
                       )}
                       {proof.textContent && (
@@ -193,6 +284,18 @@ export function ProofFeed({ groupId, dayIndex, members, currentUserId }: ProofFe
                             </Button>
                           );
                         })}
+                        
+                        {/* Delete button (owner only) */}
+                        {proof.uploaderId === currentUserId && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 ml-auto text-red-400 hover:text-red-500 hover:bg-red-500/10"
+                            onClick={() => setDeleteProofId(proof.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
                       </div>
                     </div>
                   );
@@ -206,6 +309,46 @@ export function ProofFeed({ groupId, dayIndex, members, currentUserId }: ProofFe
           </CardContent>
         </Card>
       ))}
+
+      {/* Proof Media Viewer Modal */}
+      {viewerMedia && (
+        <ProofMediaViewer
+          open={viewerOpen}
+          onOpenChange={(open) => {
+            setViewerOpen(open);
+            if (!open) setViewerMedia(null);
+          }}
+          mediaUrl={viewerMedia.url}
+          mediaType={viewerMedia.type}
+          caption={viewerMedia.caption}
+          uploaderName={viewerMedia.uploaderName}
+        />
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deleteProofId} onOpenChange={(open: boolean) => !open && setDeleteProofId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Proof?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This proof will be permanently deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-500 hover:bg-red-600"
+              onClick={() => deleteProofId && deleteProofMutation.mutate(deleteProofId)}
+              disabled={deleteProofMutation.isPending}
+            >
+              {deleteProofMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : null}
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -119,12 +119,20 @@ export function EditProfileContent({ userId }: EditProfileContentProps) {
         body: formData,
       });
 
-      if (!res.ok) {
-        throw new Error("Failed to upload image");
+      // Get response text first, then try to parse as JSON
+      const text = await res.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error(`Upload failed: ${text || "Unknown error"}`);
       }
 
-      const { url } = await res.json();
-      setAvatarUrl(url);
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to upload image");
+      }
+
+      setAvatarUrl(data.url);
       toast.success("Avatar uploaded!");
     } catch {
       toast.error("Failed to upload avatar");

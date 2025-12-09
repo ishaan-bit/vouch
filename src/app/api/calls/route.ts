@@ -111,7 +111,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const call = await prisma.callSession.findFirst({
+    // First try to find an active call
+    let call = await prisma.callSession.findFirst({
       where: {
         groupId,
         status: { in: ["SCHEDULED", "ONGOING"] },
@@ -129,6 +130,29 @@ export async function GET(request: NextRequest) {
         },
       },
     });
+
+    // If no active call, check if there's a completed call (prevent restarting)
+    if (!call) {
+      call = await prisma.callSession.findFirst({
+        where: {
+          groupId,
+          status: "COMPLETED",
+        },
+        orderBy: { endedAt: "desc" },
+        include: {
+          votes: {
+            include: {
+              voter: {
+                select: { id: true, name: true, avatarUrl: true },
+              },
+              rule: {
+                select: { id: true, title: true, creatorId: true },
+              },
+            },
+          },
+        },
+      });
+    }
 
     return NextResponse.json(call);
   } catch (error) {
