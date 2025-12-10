@@ -35,6 +35,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         profileStats: {
           select: {
             groupsCompleted: true,
+            groupsStarted: true,
             trustScore: true,
             rulesCreatedCount: true,
             rulesCompletedCount: true,
@@ -61,6 +62,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           orderBy: { createdAt: "desc" },
           take: 50,
         },
+        // Fetch group memberships and created rules for stats
+        groupMemberships: {
+          select: { id: true },
+        },
+        createdRules: {
+          select: { id: true },
+        },
       },
     });
 
@@ -78,6 +86,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           profileStats: {
             select: {
               groupsCompleted: true,
+              groupsStarted: true,
               trustScore: true,
               rulesCreatedCount: true,
               rulesCompletedCount: true,
@@ -104,6 +113,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             orderBy: { createdAt: "desc" },
             take: 50,
           },
+          // Fetch group memberships and created rules for stats
+          groupMemberships: {
+            select: { id: true },
+          },
+          createdRules: {
+            select: { id: true },
+          },
         },
       });
     }
@@ -113,9 +129,31 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     // Ensure proofs array exists (defensive)
-    if (!user.proofs) {
-      user = { ...user, proofs: [] };
-    }
+    const proofs = user.proofs || [];
+    
+    // Calculate profile stats for frontend
+    const totalGroups = user.groupMemberships?.length || 0;
+    const totalRules = user.createdRules?.length || 0;
+    const totalProofs = proofs.length;
+    
+    // Calculate success rate from profileStats if available
+    const stats = user.profileStats;
+    const groupsStarted = stats?.groupsStarted || 0;
+    const groupsCompleted = stats?.groupsCompleted || 0;
+    const successRate = groupsStarted > 0 
+      ? Math.round((groupsCompleted / groupsStarted) * 100) 
+      : 0;
+    
+    // Build the computed profile stats object the frontend expects
+    const computedProfileStats = {
+      totalGroups,
+      totalRules,
+      totalProofs,
+      successRate,
+      // Also include raw stats for reference
+      trustScore: stats?.trustScore || 50,
+      groupsCompleted,
+    };
 
     // Determine friendship status
     let friendshipStatus: "none" | "pending-sent" | "pending-received" | "friends" = "none";
@@ -166,7 +204,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       });
 
       return NextResponse.json({
-        ...user,
+        id: user.id,
+        name: user.name,
+        username: user.username,
+        avatarUrl: user.avatarUrl,
+        bio: user.bio,
+        createdAt: user.createdAt,
+        profileStats: computedProfileStats,
+        proofs,
         friendshipStatus,
         friendshipId,
         mutualFriends,
@@ -174,7 +219,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     return NextResponse.json({
-      ...user,
+      id: user.id,
+      name: user.name,
+      username: user.username,
+      avatarUrl: user.avatarUrl,
+      bio: user.bio,
+      createdAt: user.createdAt,
+      profileStats: computedProfileStats,
+      proofs,
       friendshipStatus: "none",
       mutualFriends: 0,
     });

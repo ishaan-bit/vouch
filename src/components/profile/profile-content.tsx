@@ -40,6 +40,7 @@ import {
 } from "lucide-react";
 import { formatCurrency } from "@/lib/upi";
 import { AddProofDialog } from "@/components/groups/add-proof-dialog";
+import { ProofMediaViewer } from "@/components/groups/proof-media-viewer";
 
 interface ProfileStats {
   totalEarned: number;
@@ -119,6 +120,8 @@ export function ProfileContent({ user, friends, isOwnProfile }: ProfileContentPr
   const [selectPactOpen, setSelectPactOpen] = useState(false);
   const [selectedPactForProof, setSelectedPactForProof] = useState<Group | null>(null);
   const [addProofOpen, setAddProofOpen] = useState(false);
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [selectedProof, setSelectedProof] = useState<Proof | null>(null);
   const stats = user.profileStats;
 
   // Get active groups for proof upload
@@ -475,9 +478,10 @@ export function ProfileContent({ user, friends, isOwnProfile }: ProfileContentPr
                       key={proof.id}
                       className="aspect-square relative overflow-hidden bg-slate-800 group cursor-pointer"
                       onClick={() => {
-                        // Open proof detail or lightbox
-                        if (proof.mediaUrl) {
-                          window.open(proof.mediaUrl, '_blank');
+                        // Open proof in lightbox viewer
+                        if (proof.mediaUrl || proof.textContent) {
+                          setSelectedProof(proof);
+                          setViewerOpen(true);
                         }
                       }}
                     >
@@ -677,6 +681,21 @@ export function ProfileContent({ user, friends, isOwnProfile }: ProfileContentPr
           </div>
         </BottomSheetContent>
       </BottomSheet>
+
+      {/* Proof Media Viewer */}
+      {selectedProof && selectedProof.mediaUrl && (
+        <ProofMediaViewer
+          open={viewerOpen}
+          onOpenChange={(open) => {
+            setViewerOpen(open);
+            if (!open) setSelectedProof(null);
+          }}
+          mediaUrl={selectedProof.mediaUrl}
+          mediaType={selectedProof.mediaType as "IMAGE" | "VIDEO" | "AUDIO"}
+          caption={selectedProof.caption}
+          uploaderName={user.name || undefined}
+        />
+      )}
     </div>
   );
 }

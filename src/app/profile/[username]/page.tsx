@@ -1,6 +1,6 @@
 "use client";
 
-import { use } from "react";
+import { use, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
@@ -23,6 +23,7 @@ import {
   Image as ImageIcon,
 } from "lucide-react";
 import { toast } from "sonner";
+import { ProofMediaViewer } from "@/components/groups/proof-media-viewer";
 
 interface UserProfilePageProps {
   params: Promise<{ username: string }>;
@@ -65,6 +66,8 @@ export default function UserProfilePage({ params }: UserProfilePageProps) {
   const { data: session } = useSession();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const [selectedProof, setSelectedProof] = useState<Proof | null>(null);
+  const [viewerOpen, setViewerOpen] = useState(false);
 
   // Validate username - must be defined and not the string "null" or "undefined"
   const isValidUsername = Boolean(username && username !== "null" && username !== "undefined" && username.trim() !== "");
@@ -312,9 +315,8 @@ export default function UserProfilePage({ params }: UserProfilePageProps) {
                     key={proof.id} 
                     className="overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all"
                     onClick={() => {
-                      if (proof.mediaUrl) {
-                        window.open(proof.mediaUrl, '_blank');
-                      }
+                      setSelectedProof(proof);
+                      setViewerOpen(true);
                     }}
                   >
                     <div className="aspect-square relative">
@@ -398,6 +400,21 @@ export default function UserProfilePage({ params }: UserProfilePageProps) {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Proof Media Viewer */}
+      {selectedProof && selectedProof.mediaUrl && (
+        <ProofMediaViewer
+          open={viewerOpen}
+          onOpenChange={(open) => {
+            setViewerOpen(open);
+            if (!open) setSelectedProof(null);
+          }}
+          mediaUrl={selectedProof.mediaUrl}
+          mediaType={selectedProof.mediaType as "IMAGE" | "VIDEO" | "AUDIO"}
+          caption={selectedProof.caption}
+          uploaderName={profile.name || undefined}
+        />
+      )}
     </div>
   );
 }

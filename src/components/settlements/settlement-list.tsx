@@ -86,10 +86,16 @@ export function SettlementList() {
   });
 
   const openUpiLink = async (obligationId: string) => {
-    const res = await fetch(`/api/payments/${obligationId}/upi-link`);
-    if (res.ok) {
+    try {
+      const res = await fetch(`/api/payments/${obligationId}/upi-link`);
       const data = await res.json();
-      window.open(data.upiLink, "_blank");
+      if (res.ok) {
+        window.open(data.upiLink, "_blank");
+      } else {
+        toast.error(data.error || "Failed to get UPI link");
+      }
+    } catch (error) {
+      toast.error("Failed to get UPI link");
     }
   };
 

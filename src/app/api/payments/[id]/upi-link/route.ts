@@ -66,7 +66,7 @@ export async function GET(request: Request, { params }: RouteParams) {
       payeeVpa: obligation.toUser.upiId,
       payeeName: obligation.toUser.name || "Vouch User",
       amountInRupees: obligation.amount / 100,
-      txnNote: `Vouch: ${obligation.group.name} - ${obligation.rule.title}`,
+      txnNote: `Vouch: ${obligation.group.name}${obligation.rule.title ? ` - ${obligation.rule.title}` : ""}`,
     });
 
     return NextResponse.json({
