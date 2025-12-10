@@ -12,13 +12,18 @@ export default async function HomePage() {
   }
 
   // Check if user has accepted Vouch Club rules
-  const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { hasAcceptedVouchRules: true },
-  });
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { hasAcceptedVouchRules: true },
+    });
 
-  if (!user?.hasAcceptedVouchRules) {
-    redirect("/rules?first=true");
+    if (user && !user.hasAcceptedVouchRules) {
+      redirect("/rules?first=true");
+    }
+  } catch (error) {
+    // If column doesn't exist yet, skip the check
+    console.error("Error checking rules acceptance:", error);
   }
 
   return (
