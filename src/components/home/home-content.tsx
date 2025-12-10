@@ -157,21 +157,32 @@ export function HomeContent({ userId }: HomeContentProps) {
               <div className="w-16 h-16 rounded-full bg-[var(--dusk-3)] flex items-center justify-center mx-auto mb-4">
                 <Target className="w-7 h-7 text-white/30" />
               </div>
-              <p className="text-white font-medium mb-2">No active pacts yet</p>
-              <p className="text-white/40 text-sm mb-5 max-w-xs mx-auto">
-                Start a pact with friends and hold each other accountable.
-              </p>
-              <Link href="/groups/create">
-                <button className={cn(
-                  "px-6 py-3 rounded-xl font-semibold text-sm",
-                  "bg-gradient-to-r from-[var(--accent-violet)] to-[var(--accent-magenta)]",
-                  "text-white shadow-lg shadow-[var(--accent-violet)]/20",
-                  "hover:shadow-xl hover:shadow-[var(--accent-violet)]/30",
-                  "transition-all duration-200"
-                )}>
-                  Create Your First Pact
-                </button>
-              </Link>
+              {planningGroups.length > 0 ? (
+                <>
+                  <p className="text-white font-medium mb-2">No active pacts yet</p>
+                  <p className="text-white/40 text-sm mb-5 max-w-xs mx-auto">
+                    You have {planningGroups.length} pact{planningGroups.length > 1 ? 's' : ''} in setup. Complete the setup to get started!
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-white font-medium mb-2">No active pacts yet</p>
+                  <p className="text-white/40 text-sm mb-5 max-w-xs mx-auto">
+                    Start a pact with friends and hold each other accountable.
+                  </p>
+                  <Link href="/groups/create">
+                    <button className={cn(
+                      "px-6 py-3 rounded-xl font-semibold text-sm",
+                      "bg-gradient-to-r from-[var(--accent-violet)] to-[var(--accent-magenta)]",
+                      "text-white shadow-lg shadow-[var(--accent-violet)]/20",
+                      "hover:shadow-xl hover:shadow-[var(--accent-violet)]/30",
+                      "transition-all duration-200"
+                    )}>
+                      Create Your First Pact
+                    </button>
+                  </Link>
+                </>
+              )}
             </div>
           ) : (
             <div className="space-y-4">
