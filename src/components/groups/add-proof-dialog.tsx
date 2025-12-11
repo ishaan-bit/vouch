@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { upload } from "@vercel/blob/client";
 import {
   BottomSheet,
   BottomSheetContent,
@@ -190,6 +191,20 @@ export function AddProofDialog({
 
     setIsUploading(true);
     try {
+      // Use client-side upload for videos (bypasses serverless body limit)
+      const isVideo = file.type.startsWith("video/");
+      const isLargeFile = file.size > 4 * 1024 * 1024; // > 4MB
+      
+      if (isVideo || isLargeFile) {
+        // Use client upload for large files
+        const blob = await upload(file.name, file, {
+          access: "public",
+          handleUploadUrl: "/api/upload/client",
+        });
+        return blob.url;
+      }
+      
+      // Use server upload for smaller files (images, audio)
       const formData = new FormData();
       formData.append("file", file);
 

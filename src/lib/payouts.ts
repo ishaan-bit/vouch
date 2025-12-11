@@ -88,6 +88,12 @@ export async function computePaymentObligations(
       continue;
     }
 
+    // Skip self-votes - they don't create payment obligations between users
+    // Self-NO votes are handled separately (cause losses)
+    if (vote.voterId === vote.targetUserId) {
+      continue;
+    }
+
     // Creator voted YES for this member following their rule
     // So creator owes the member the stake amount
     const key = `${vote.voterId}|${vote.targetUserId}`;
@@ -99,6 +105,72 @@ export async function computePaymentObligations(
       ruleId: rule.id,
       amount: rule.stakeAmount,
     });
+  }
+
+  // Handle self-NO votes (cause losses)
+  const noVotes = await prisma.ruleVote.findMany({
+    where: {
+      callSessionId,
+      value: "NO",
+    },
+  });
+
+  for (const vote of noVotes) {
+    const rule = ruleMap.get(vote.ruleId);
+    if (!rule) continue;
+
+    // Only process self-NO votes where voter is the rule creator
+    if (vote.voterId !== rule.creatorId) continue;
+    if (vote.voterId !== vote.targetUserId) continue;
+
+    // Creator voted NO on themselves - create/update a cause loss
+    // Check if one already exists
+    const existingCauseLoss = await prisma.causeLoss.findFirst({
+      where: {
+        userId: vote.voterId,
+        groupId: callSession.groupId,
+        ruleId: rule.id,
+        cycleId: callSessionId,
+      },
+    });
+
+    if (existingCauseLoss) {
+      await prisma.causeLoss.update({
+        where: { id: existingCauseLoss.id },
+        data: {
+          amount: rule.stakeAmount,
+          status: "PLEDGED",
+        },
+      });
+    } else {
+      await prisma.causeLoss.create({
+        data: {
+          userId: vote.voterId,
+          groupId: callSession.groupId,
+          ruleId: rule.id,
+          cycleId: callSessionId,
+          amount: rule.stakeAmount,
+          status: "PLEDGED",
+        },
+      });
+    }
+
+    // Create notification for cause loss (only if new)
+    if (!existingCauseLoss) {
+      await prisma.notification.create({
+        data: {
+          userId: vote.voterId,
+          type: "CAUSE_LOSS_PROMPT",
+          title: "Vouch for a Cause",
+          message: `You didn't follow your own rule. Consider donating ₹${rule.stakeAmount / 100} to a cause that matters to you.`,
+          data: JSON.stringify({ 
+            groupId: callSession.groupId, 
+            ruleId: rule.id, 
+            amount: rule.stakeAmount 
+          }),
+        },
+      });
+    }
   }
 
   // Convert to obligation records and save to database

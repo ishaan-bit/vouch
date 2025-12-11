@@ -69,6 +69,9 @@ model User {
 
   // Vouch for a Cause
   causeLosses CauseLoss[]
+
+  // Reports
+  reports Report[]
 }
 
 model Account {
@@ -382,6 +385,7 @@ model CallSession {
   startedAt   DateTime?
   endedAt     DateTime?
   status      CallStatus @default(SCHEDULED)
+  meetingUrl  String?    // External video call link (Google Meet, Zoom, etc.)
   createdAt   DateTime   @default(now())
 
   group       Group               @relation(fields: [groupId], references: [id], onDelete: Cascade)
@@ -506,4 +510,39 @@ model CauseLoss {
   user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   group Group? @relation(fields: [groupId], references: [id], onDelete: SetNull)
   rule  Rule?  @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+
+  // Prevent duplicate cause losses for the same user, group, rule, and cycle
+  @@unique([userId, groupId, ruleId, cycleId])
+}
+
+// ============================================
+// REPORTS
+// ============================================
+
+enum ReportType {
+  USER
+  MESSAGE
+  PROOF
+  GROUP
+}
+
+enum ReportStatus {
+  PENDING
+  REVIEWED
+  RESOLVED
+  DISMISSED
+}
+
+model Report {
+  id         String       @id @default(cuid())
+  reporterId String
+  type       ReportType
+  targetId   String       // ID of the reported entity (user, message, proof, or group)
+  reason     String
+  details    String?
+  status     ReportStatus @default(PENDING)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  reporter User @relation(fields: [reporterId], references: [id], onDelete: Cascade)
 }

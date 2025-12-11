@@ -21,9 +21,31 @@ import {
   Loader2,
   Clock,
   Image as ImageIcon,
+  MoreVertical,
+  UserMinus,
+  Ban,
+  Flag,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { ProofMediaViewer } from "@/components/groups/proof-media-viewer";
+import { ReportDialog } from "@/components/reports/report-dialog";
 
 interface UserProfilePageProps {
   params: Promise<{ username: string }>;
@@ -68,6 +90,9 @@ export default function UserProfilePage({ params }: UserProfilePageProps) {
   const queryClient = useQueryClient();
   const [selectedProof, setSelectedProof] = useState<Proof | null>(null);
   const [viewerOpen, setViewerOpen] = useState(false);
+  const [showRemoveDialog, setShowRemoveDialog] = useState(false);
+  const [showBlockDialog, setShowBlockDialog] = useState(false);
+  const [showReportDialog, setShowReportDialog] = useState(false);
 
   // Validate username - must be defined and not the string "null" or "undefined"
   const isValidUsername = Boolean(username && username !== "null" && username !== "undefined" && username.trim() !== "");
@@ -121,6 +146,48 @@ export default function UserProfilePage({ params }: UserProfilePageProps) {
     },
     onError: () => {
       toast.error("Failed to respond to request");
+    },
+  });
+
+  const removeFriendMutation = useMutation({
+    mutationFn: async () => {
+      if (!profile?.friendshipId) throw new Error("No friendship found");
+      const res = await fetch(`/api/friends/${profile.friendshipId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Failed to remove friend");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["user-profile", username] });
+      queryClient.invalidateQueries({ queryKey: ["friends"] });
+      toast.success("Friend removed");
+      setShowRemoveDialog(false);
+    },
+    onError: () => {
+      toast.error("Failed to remove friend");
+    },
+  });
+
+  const blockUserMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/users/block", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: profile?.id }),
+      });
+      if (!res.ok) throw new Error("Failed to block user");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["user-profile", username] });
+      queryClient.invalidateQueries({ queryKey: ["friends"] });
+      toast.success("User blocked");
+      setShowBlockDialog(false);
+      router.back();
+    },
+    onError: () => {
+      toast.error("Failed to block user");
     },
   });
 
@@ -247,7 +314,67 @@ export default function UserProfilePage({ params }: UserProfilePageProps) {
                   <MessageCircle className="h-4 w-4 mr-2" />
                   Message
                 </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="icon">
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem 
+                      onClick={() => setShowReportDialog(true)}
+                      className="text-orange-600"
+                    >
+                      <Flag className="h-4 w-4 mr-2" />
+                      Report User
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem 
+                      onClick={() => setShowRemoveDialog(true)}
+                      className="text-orange-600"
+                    >
+                      <UserMinus className="h-4 w-4 mr-2" />
+                      Remove Friend
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem 
+                      onClick={() => setShowBlockDialog(true)}
+                      className="text-destructive"
+                    >
+                      <Ban className="h-4 w-4 mr-2" />
+                      Block User
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </>
+            )}
+
+            {/* Non-friends can still block */}
+            {profile.friendshipStatus !== "friends" && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon">
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem 
+                    onClick={() => setShowReportDialog(true)}
+                    className="text-orange-600"
+                  >
+                    <Flag className="h-4 w-4 mr-2" />
+                    Report User
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem 
+                    onClick={() => setShowBlockDialog(true)}
+                    className="text-destructive"
+                  >
+                    <Ban className="h-4 w-4 mr-2" />
+                    Block User
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
           </div>
         )}
@@ -415,6 +542,67 @@ export default function UserProfilePage({ params }: UserProfilePageProps) {
           uploaderName={profile.name || undefined}
         />
       )}
+
+      {/* Remove Friend Confirmation Dialog */}
+      <AlertDialog open={showRemoveDialog} onOpenChange={setShowRemoveDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Friend</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to remove {profile.name || profile.username} from your friends? 
+              You can send another friend request later.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => removeFriendMutation.mutate()}
+              disabled={removeFriendMutation.isPending}
+              className="bg-orange-600 hover:bg-orange-700"
+            >
+              {removeFriendMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : null}
+              Remove Friend
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Block User Confirmation Dialog */}
+      <AlertDialog open={showBlockDialog} onOpenChange={setShowBlockDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Block User</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to block {profile.name || profile.username}? 
+              They won't be able to see your profile, send you messages, or add you as a friend.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => blockUserMutation.mutate()}
+              disabled={blockUserMutation.isPending}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              {blockUserMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : null}
+              Block User
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Report User Dialog */}
+      <ReportDialog
+        open={showReportDialog}
+        onOpenChange={setShowReportDialog}
+        type="USER"
+        targetId={profile.id}
+        targetName={profile.name || profile.username || undefined}
+      />
     </div>
   );
 }

@@ -48,6 +48,10 @@ const nextConfig: NextConfig = {
   experimental: {
     // Optimize package imports
     optimizePackageImports: ["lucide-react", "@radix-ui/react-icons", "date-fns"],
+    // Allow larger uploads for videos
+    serverActions: {
+      bodySizeLimit: "50mb",
+    },
   },
 };
 

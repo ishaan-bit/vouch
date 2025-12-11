@@ -73,13 +73,36 @@ export async function POST(request: Request) {
     const filename = `${folder}/${session.user.id}/${Date.now()}.${ext}`;
 
     // Upload to Vercel Blob (pass token explicitly to support both env var names)
-    const blob = await put(filename, file, {
-      access: "public",
-      addRandomSuffix: true,
-      token: blobToken,
-    });
-
-    return NextResponse.json({ url: blob.url }, { status: 201 });
+    try {
+      const blob = await put(filename, file, {
+        access: "public",
+        addRandomSuffix: true,
+        token: blobToken,
+      });
+      
+      return NextResponse.json({ url: blob.url }, { status: 201 });
+    } catch (uploadError) {
+      console.error("Vercel Blob upload error:", uploadError);
+      
+      // Parse Vercel Blob specific errors
+      const errMsg = uploadError instanceof Error ? uploadError.message : String(uploadError);
+      
+      if (errMsg.includes("Forbidden") || errMsg.includes("403")) {
+        return NextResponse.json(
+          { error: "Upload forbidden. Please check blob storage permissions or try a smaller file." },
+          { status: 403 }
+        );
+      }
+      
+      if (errMsg.includes("PayloadTooLarge") || errMsg.includes("413")) {
+        return NextResponse.json(
+          { error: "File too large for upload. Please try a smaller file (under 4.5MB)." },
+          { status: 413 }
+        );
+      }
+      
+      throw uploadError;
+    }
   } catch (error) {
     console.error("Error uploading file:", error);
     

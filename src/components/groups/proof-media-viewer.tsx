@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { X, ChevronLeft, ChevronRight, Download, Volume2, VolumeX, Play, Pause } from "lucide-react";
+import { AudioPlayer } from "@/components/ui/audio-player";
 
 // Visually hidden component for accessibility
 function VisuallyHidden({ children }: { children: React.ReactNode }) {
@@ -217,37 +218,12 @@ export function ProofMediaViewer({
           )}
 
           {mediaType === "AUDIO" && (
-            <div className="flex flex-col items-center gap-6 p-8 bg-white/10 rounded-xl">
-              <div className="w-32 h-32 bg-gradient-to-br from-violet-500 to-purple-600 rounded-full flex items-center justify-center">
-                <div className="w-24 h-24 bg-white/20 rounded-full flex items-center justify-center">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="text-white hover:bg-white/20 h-16 w-16 rounded-full"
-                    onClick={togglePlay}
-                  >
-                    {isPlaying ? <Pause className="h-8 w-8" /> : <Play className="h-8 w-8" />}
-                  </Button>
-                </div>
-              </div>
-              <audio
-                ref={setAudioRef}
+            <div className="w-full max-w-md">
+              <AudioPlayer
                 src={mediaUrl}
-                muted={isMuted}
-                onPlay={() => setIsPlaying(true)}
-                onPause={() => setIsPlaying(false)}
-                className="hidden"
+                caption={caption}
+                className="w-full"
               />
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="text-white hover:bg-white/20"
-                  onClick={toggleMute}
-                >
-                  {isMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
-                </Button>
-              </div>
             </div>
           )}
         </div>

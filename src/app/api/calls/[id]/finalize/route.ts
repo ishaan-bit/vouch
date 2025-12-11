@@ -22,9 +22,20 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       include: {
         group: {
           include: {
-            memberships: true,
+            memberships: {
+              include: {
+                user: {
+                  select: { id: true, name: true },
+                },
+              },
+            },
             rules: {
               where: { approved: true },
+              include: {
+                creator: {
+                  select: { id: true, name: true },
+                },
+              },
             },
           },
         },
@@ -51,6 +62,69 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
+    // Check if all members have voted on all rules
+    // Each rule creator must vote on all members (including themselves)
+    const members = call.group.memberships;
+    const rules = call.group.rules;
+    const existingVotes = call.votes;
+
+    // Build a set of all required votes (ruleId|voterId|targetUserId)
+    const requiredVotes = new Set<string>();
+    const missingVoters: { name: string | null; ruleTitle: string }[] = [];
+
+    for (const rule of rules) {
+      const ruleCreatorId = rule.creatorId;
+      const ruleCreator = rule.creator;
+      
+      // Rule creator must vote on all members (including self)
+      for (const membership of members) {
+        const targetUserId = membership.userId;
+        const voteKey = `${rule.id}|${ruleCreatorId}|${targetUserId}`;
+        requiredVotes.add(voteKey);
+      }
+    }
+
+    // Check which votes exist
+    const existingVoteSet = new Set(
+      existingVotes.map((v: { ruleId: string; voterId: string; targetUserId: string }) => 
+        `${v.ruleId}|${v.voterId}|${v.targetUserId}`
+      )
+    );
+
+    // Find missing votes
+    for (const requiredVote of requiredVotes) {
+      if (!existingVoteSet.has(requiredVote)) {
+        const [ruleId, voterId] = requiredVote.split("|");
+        const rule = rules.find((r: { id: string }) => r.id === ruleId);
+        const voter = members.find((m: { userId: string }) => m.userId === voterId);
+        if (rule && voter) {
+          // Only add unique voter/rule combinations to missing list
+          const alreadyAdded = missingVoters.some(
+            (m) => m.name === voter.user.name && m.ruleTitle === rule.title
+          );
+          if (!alreadyAdded) {
+            missingVoters.push({
+              name: voter.user.name,
+              ruleTitle: rule.title || "Untitled Rule",
+            });
+          }
+        }
+      }
+    }
+
+    if (missingVoters.length > 0) {
+      // Group missing votes by voter
+      const votersMissing = [...new Set(missingVoters.map((m) => m.name))];
+      return NextResponse.json(
+        { 
+          error: "Not all members have finished voting",
+          message: `Waiting for: ${votersMissing.filter(Boolean).join(", ")}`,
+          missingVoters: votersMissing,
+        },
+        { status: 400 }
+      );
+    }
+
     // Compute and create payment obligations
     const obligations = await computePaymentObligations(id);
 
@@ -69,8 +143,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       data: { status: "COMPLETED" },
     });
 
-    // Notify all members
-    const members = call.group.memberships;
+    // Notify all members (reuse members variable from above)
     await prisma.notification.createMany({
       data: members.map((m: { userId: string }) => ({
         userId: m.userId,

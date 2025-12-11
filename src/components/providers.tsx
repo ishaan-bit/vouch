@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 import { SocketProvider } from "@/components/providers/socket-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { NotificationProvider } from "@/components/notifications/notification-provider";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -23,7 +24,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <SessionProvider>
       <QueryClientProvider client={queryClient}>
         <SocketProvider>
-          {children}
+          <NotificationProvider>
+            {children}
+          </NotificationProvider>
           <Toaster position="top-center" />
         </SocketProvider>
       </QueryClientProvider>

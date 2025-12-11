@@ -37,7 +37,14 @@ import {
   ArrowUpRight,
   Plus,
   ChevronRight,
+  Info,
 } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { formatCurrency } from "@/lib/upi";
 import { AddProofDialog } from "@/components/groups/add-proof-dialog";
 import { ProofMediaViewer } from "@/components/groups/proof-media-viewer";
@@ -340,8 +347,28 @@ export function ProfileContent({ user, friends, isOwnProfile }: ProfileContentPr
               <span className={`px-4 py-1.5 rounded-full bg-gradient-to-r ${trustBadge.color} text-white text-sm font-medium shadow-lg`}>
                 {trustBadge.icon} {trustBadge.label}
               </span>
-              <span className="text-sm text-slate-400">
+              <span className="text-sm text-slate-400 flex items-center gap-1">
                 {trustScore.toFixed(0)}/100 Trust
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button className="p-0.5 rounded-full hover:bg-white/10 transition-colors">
+                        <Info className="h-3.5 w-3.5 text-slate-500" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className="max-w-[280px] p-3 bg-slate-900 border-slate-700">
+                      <p className="text-sm text-slate-200 leading-relaxed">
+                        {trustScore === 50 ? (
+                          <>Everyone starts at 50. Your trust score goes up when pact members rate your behavior positively, and down when they rate it negatively.</>
+                        ) : trustScore > 50 ? (
+                          <>Your trust score increased because pact members rated your accountability positively. Keep it up!</>
+                        ) : (
+                          <>Your trust score decreased based on ratings from pact members. Complete more pacts successfully to improve it.</>
+                        )}
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </span>
             </div>
 

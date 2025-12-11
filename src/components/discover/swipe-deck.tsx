@@ -132,7 +132,7 @@ function SwipeCard({
   };
 
   const formatStake = (amountPaise: number | null | undefined) => {
-    if (!amountPaise) return "Free";
+    if (!amountPaise) return "No stake";
     return `₹${(amountPaise / 100).toFixed(0)}`;
   };
 
@@ -183,9 +183,15 @@ function SwipeCard({
         <div className="absolute top-4 right-4">
           <span className="px-3 py-1.5 bg-black/30 backdrop-blur-md rounded-full text-sm font-medium text-[var(--accent-gold)] flex items-center gap-2">
             <Coins className="w-4 h-4" />
-            {formatStake(stakes.minStakeAmount)}
-            {stakes.maxStakeAmount && stakes.maxStakeAmount !== stakes.minStakeAmount && (
-              <span>- {formatStake(stakes.maxStakeAmount)}</span>
+            {stakes.minStakeAmount ? (
+              <>
+                Stake: {formatStake(stakes.minStakeAmount)}
+                {stakes.maxStakeAmount && stakes.maxStakeAmount !== stakes.minStakeAmount && (
+                  <span>- {formatStake(stakes.maxStakeAmount)}</span>
+                )}
+              </>
+            ) : (
+              "No stake"
             )}
           </span>
         </div>
@@ -364,7 +370,7 @@ function JoinModal({
   };
 
   const formatStake = (amountPaise: number | null | undefined) => {
-    if (!amountPaise) return "Free";
+    if (!amountPaise) return "No stake";
     return `₹${(amountPaise / 100).toFixed(0)}`;
   };
 

@@ -41,6 +41,7 @@ import {
   ChevronRight,
   ImageIcon,
   LogOut,
+  Share2,
 } from "lucide-react";
 
 // Types
@@ -173,7 +174,15 @@ export function GroupDetailContent({ group, currentUserId, pendingJoinRequests =
     },
   });
 
-  // Copy invite code
+  // Copy invite link (not just code)
+  const copyInviteLink = () => {
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+    const inviteLink = `${baseUrl}/i/${group.inviteCode}`;
+    navigator.clipboard.writeText(inviteLink);
+    toast.success("Invite link copied!");
+  };
+
+  // Copy invite code only
   const copyInviteCode = () => {
     navigator.clipboard.writeText(group.inviteCode);
     toast.success("Invite code copied!");
@@ -434,18 +443,28 @@ export function GroupDetailContent({ group, currentUserId, pendingJoinRequests =
             "border border-[var(--accent-violet)]/20"
           )}>
             <div className="absolute top-0 right-0 w-24 h-24 bg-[var(--accent-violet)]/10 rounded-full blur-[40px]" />
-            <div className="relative flex items-center justify-between">
-              <div>
-                <p className="text-xs text-white/50 mb-1">Invite Code</p>
-                <p className="text-xl font-mono font-bold text-white tracking-[0.2em]">
-                  {group.inviteCode}
-                </p>
+            <div className="relative">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <p className="text-xs text-white/50 mb-1">Invite Code</p>
+                  <p className="text-xl font-mono font-bold text-white tracking-[0.2em]">
+                    {group.inviteCode}
+                  </p>
+                </div>
+                <button
+                  onClick={copyInviteCode}
+                  className="p-3 rounded-xl bg-white/10 text-white/70 hover:bg-white/15 hover:text-white transition-all"
+                  title="Copy code"
+                >
+                  <Copy className="h-5 w-5" />
+                </button>
               </div>
               <button
-                onClick={copyInviteCode}
-                className="p-3 rounded-xl bg-white/10 text-white/70 hover:bg-white/15 hover:text-white transition-all"
+                onClick={copyInviteLink}
+                className="w-full py-2.5 px-4 rounded-xl bg-[var(--accent-violet)]/20 hover:bg-[var(--accent-violet)]/30 text-white/80 hover:text-white text-sm font-medium flex items-center justify-center gap-2 transition-all"
               >
-                <Copy className="h-5 w-5" />
+                <Share2 className="h-4 w-4" />
+                Share Invite Link
               </button>
             </div>
           </div>

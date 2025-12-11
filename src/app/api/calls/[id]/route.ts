@@ -78,7 +78,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   }
 }
 
-// PATCH /api/calls/[id] - Update call status (start/end)
+// PATCH /api/calls/[id] - Update call status (start/end) or meeting URL
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
     const session = await auth();
@@ -87,10 +87,26 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     }
 
     const { id } = await params;
-    const { status } = await request.json();
+    const { status, meetingUrl } = await request.json();
 
-    if (!["ONGOING", "COMPLETED", "CANCELLED"].includes(status)) {
+    // Validate status if provided
+    if (status && !["ONGOING", "COMPLETED", "CANCELLED"].includes(status)) {
       return NextResponse.json({ error: "Invalid status" }, { status: 400 });
+    }
+
+    // Validate meetingUrl if provided
+    if (meetingUrl !== undefined && meetingUrl !== null && meetingUrl !== "") {
+      try {
+        const url = new URL(meetingUrl);
+        // Allow common video call providers
+        const allowedHosts = ["meet.google.com", "zoom.us", "teams.microsoft.com", "discord.gg", "discord.com"];
+        const isAllowedHost = allowedHosts.some(host => url.host.includes(host) || url.host === host);
+        if (!isAllowedHost && !meetingUrl.startsWith("https://")) {
+          return NextResponse.json({ error: "Invalid meeting URL. Use Google Meet, Zoom, Teams, or Discord links." }, { status: 400 });
+        }
+      } catch {
+        return NextResponse.json({ error: "Invalid meeting URL format" }, { status: 400 });
+      }
     }
 
     const call = await prisma.callSession.findUnique({
@@ -116,16 +132,29 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: "Not authorized" }, { status: 403 });
     }
 
-    const updateData: { status: "SCHEDULED" | "ONGOING" | "COMPLETED" | "CANCELLED"; startedAt?: Date; endedAt?: Date } = {
-      status: status as "SCHEDULED" | "ONGOING" | "COMPLETED" | "CANCELLED",
-    };
+    const updateData: { 
+      status?: "SCHEDULED" | "ONGOING" | "COMPLETED" | "CANCELLED"; 
+      startedAt?: Date; 
+      endedAt?: Date;
+      meetingUrl?: string | null;
+    } = {};
 
-    if (status === "ONGOING" && !call.startedAt) {
-      updateData.startedAt = new Date();
+    // Handle status update
+    if (status) {
+      updateData.status = status as "SCHEDULED" | "ONGOING" | "COMPLETED" | "CANCELLED";
+      
+      if (status === "ONGOING" && !call.startedAt) {
+        updateData.startedAt = new Date();
+      }
+
+      if (status === "COMPLETED" || status === "CANCELLED") {
+        updateData.endedAt = new Date();
+      }
     }
 
-    if (status === "COMPLETED" || status === "CANCELLED") {
-      updateData.endedAt = new Date();
+    // Handle meetingUrl update
+    if (meetingUrl !== undefined) {
+      updateData.meetingUrl = meetingUrl || null;
     }
 
     const updatedCall = await prisma.callSession.update({

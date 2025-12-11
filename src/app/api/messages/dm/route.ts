@@ -84,6 +84,17 @@ export async function POST(request: NextRequest) {
         },
       });
 
+      // Create notification for the recipient
+      await prisma.notification.create({
+        data: {
+          userId: targetUserId,
+          type: "OTHER",
+          title: "New message",
+          message: `${session.user.name || "Someone"} sent you a message`,
+          data: { threadId: thread.id, senderId: session.user.id },
+        },
+      });
+
       // Add mediaType to response for frontend to know how to render
       const response = {
         ...message,
@@ -151,12 +162,39 @@ export async function GET(request: NextRequest) {
     }
 
     // Transform and sort by most recent message
+    // First, get all friendship IDs for these users
+    const otherUserIds = threads.map((thread: any) =>
+      thread.userAId === session.user.id ? thread.userBId : thread.userAId
+    );
+    
+    const friendships = await prisma.friendship.findMany({
+      where: {
+        OR: [
+          { requesterId: session.user.id, receiverId: { in: otherUserIds } },
+          { requesterId: { in: otherUserIds }, receiverId: session.user.id },
+        ],
+        status: "ACCEPTED",
+      },
+      select: {
+        id: true,
+        requesterId: true,
+        receiverId: true,
+      },
+    });
+    
+    const friendshipMap = new Map();
+    friendships.forEach((f: any) => {
+      const otherId = f.requesterId === session.user.id ? f.receiverId : f.requesterId;
+      friendshipMap.set(otherId, f.id);
+    });
+
     const transformed = threads.map((thread: any) => {
       const otherUser =
         thread.userAId === session.user.id ? thread.userB : thread.userA;
       return {
         id: thread.id,
         otherUser,
+        friendshipId: friendshipMap.get(otherUser.id) || null,
         lastMessage: thread.messages[0] || null,
         unreadCount: 0, // TODO: implement unread count
         updatedAt: thread.messages[0]?.createdAt || thread.createdAt,

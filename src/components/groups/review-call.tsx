@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
 import {
@@ -20,6 +21,7 @@ import {
   ExternalLink,
   X,
   XCircle,
+  Link2,
 } from "lucide-react";
 import { buildUpiUri } from "@/lib/upi";
 
@@ -70,6 +72,10 @@ export function ReviewCall({ groupId, groupName, currentUserId }: ReviewCallProp
   const [votesMap, setVotesMap] = useState<Map<string, Map<string, VoteValue>>>(new Map());
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
+  
+  // State for meeting URL
+  const [meetingUrlInput, setMeetingUrlInput] = useState("");
+  const [showMeetingUrlInput, setShowMeetingUrlInput] = useState(false);
 
   // Fetch active call
   const { data: call, isLoading: callLoading } = useQuery({
@@ -126,6 +132,32 @@ export function ReviewCall({ groupId, groupName, currentUserId }: ReviewCallProp
     },
   });
 
+  // Update meeting URL mutation
+  const updateMeetingUrlMutation = useMutation({
+    mutationFn: async (meetingUrl: string) => {
+      const res = await fetch(`/api/calls/${call.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ meetingUrl }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to update meeting URL");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["call", groupId] });
+      queryClient.invalidateQueries({ queryKey: ["callDetails", call?.id] });
+      setShowMeetingUrlInput(false);
+      setMeetingUrlInput("");
+      toast.success("Meeting link saved!");
+    },
+    onError: (err: Error) => {
+      toast.error(err.message);
+    },
+  });
+
   // Start voting mutation
   const startVotingMutation = useMutation({
     mutationFn: async () => {
@@ -153,16 +185,15 @@ export function ReviewCall({ groupId, groupName, currentUserId }: ReviewCallProp
         (r: Rule) => r.creatorId === currentUserId
       );
       
-      // Get all other members
-      const otherMembers = (callDetails?.group?.memberships || [])
-        .map((m: { user: Member }) => m.user)
-        .filter((m: Member) => m.id !== currentUserId);
+      // Get ALL members including self (for self-rule voting)
+      const allMembers = (callDetails?.group?.memberships || [])
+        .map((m: { user: Member }) => m.user);
 
-      // For each of my rules, create votes for all members
+      // For each of my rules, create votes for all members (including self)
       for (const rule of myRules) {
         const memberVotes = votesMap.get(rule.id);
         
-        for (const member of otherMembers) {
+        for (const member of allMembers) {
           const vote = memberVotes?.get(member.id);
           // Only include explicit YES/NO votes, skip PENDING
           if (vote && vote !== "PENDING") {
@@ -211,7 +242,9 @@ export function ReviewCall({ groupId, groupName, currentUserId }: ReviewCallProp
       });
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || "Failed to finalize");
+        // Include detailed message if available
+        const errorMessage = data.message || data.error || "Failed to finalize";
+        throw new Error(errorMessage);
       }
       return res.json();
     },
@@ -272,7 +305,13 @@ export function ReviewCall({ groupId, groupName, currentUserId }: ReviewCallProp
     [rules, currentUserId]
   );
 
-  // Get other members (excluding self)
+  // Get all members including self (for voting on own rules)
+  const votingMembers = useMemo(
+    () => members,
+    [members]
+  );
+
+  // Get other members (excluding self) - kept for backward compatibility
   const otherMembers = useMemo(
     () => members.filter((m) => m.id !== currentUserId),
     [members, currentUserId]
@@ -311,38 +350,39 @@ export function ReviewCall({ groupId, groupName, currentUserId }: ReviewCallProp
     return votesMap.get(ruleId)?.get(memberId) || "PENDING";
   };
 
-  // Check if all members have been voted on for the current rule
+  // Check if all members have been voted on for the current rule (including self)
   const isCurrentRuleComplete = () => {
     if (!currentRule) return false;
     const ruleVotes = votesMap.get(currentRule.id);
     if (!ruleVotes) return false;
     
-    return otherMembers.every((member) => {
+    return votingMembers.every((member) => {
       const vote = ruleVotes.get(member.id);
       return vote === "YES" || vote === "NO";
     });
   };
 
-  // Check if all rules have complete votes
+  // Check if all rules have complete votes (including self-votes)
   const areAllVotesComplete = () => {
     return myRules.every((rule) => {
       const ruleVotes = votesMap.get(rule.id);
       if (!ruleVotes) return false;
       
-      return otherMembers.every((member) => {
+      return votingMembers.every((member) => {
         const vote = ruleVotes.get(member.id);
         return vote === "YES" || vote === "NO";
       });
     });
   };
 
-  // Get summary of votes for confirmation
+  // Get summary of votes for confirmation (including self)
   const getVoteSummary = () => {
     return myRules.map((rule) => {
       const ruleVotes = votesMap.get(rule.id);
-      const memberVotes = otherMembers.map((member) => ({
+      const memberVotes = votingMembers.map((member) => ({
         member,
         vote: ruleVotes?.get(member.id) || "PENDING",
+        isSelf: member.id === currentUserId,
       }));
       return { rule, memberVotes };
     });
@@ -420,23 +460,103 @@ export function ReviewCall({ groupId, groupName, currentUserId }: ReviewCallProp
   // Call scheduled - waiting to start voting
   if (call.status === "SCHEDULED") {
     return (
-      <div className="p-6 rounded-3xl bg-slate-900/50 border border-slate-800/50 text-center">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-amber-500/20 mb-4">
-          <Users className="h-8 w-8 text-amber-400" />
+      <div className="p-6 rounded-3xl bg-slate-900/50 border border-slate-800/50 space-y-6">
+        <div className="text-center">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-amber-500/20 mb-4">
+            <Users className="h-8 w-8 text-amber-400" />
+          </div>
+          <h3 className="text-xl font-semibold text-white mb-2">Review Call Ready</h3>
+          <p className="text-slate-400">
+            {call.meetingUrl 
+              ? "Join the video call, then vote on who followed the rules"
+              : "Add a meeting link so everyone can join the call"}
+          </p>
         </div>
-        <h3 className="text-xl font-semibold text-white mb-2">Call Ready</h3>
-        <p className="text-slate-400 mb-6">
-          Click below to start voting on who followed the rules
-        </p>
+
+        {/* Meeting URL section */}
+        <div className="space-y-3">
+          {call.meetingUrl ? (
+            <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
+                    <Video className="h-5 w-5 text-emerald-400" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-sm text-slate-400">Meeting Link</div>
+                    <div className="text-emerald-400 text-sm truncate">{call.meetingUrl}</div>
+                  </div>
+                </div>
+                <a
+                  href={call.meetingUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-shrink-0"
+                >
+                  <Button className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl">
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    Join Call
+                  </Button>
+                </a>
+              </div>
+            </div>
+          ) : showMeetingUrlInput ? (
+            <div className="p-4 rounded-2xl bg-slate-800/50 border border-slate-700/50">
+              <div className="text-sm text-slate-400 mb-3">
+                Paste a Google Meet, Zoom, or Teams link
+              </div>
+              <div className="flex gap-2">
+                <Input
+                  value={meetingUrlInput}
+                  onChange={(e) => setMeetingUrlInput(e.target.value)}
+                  placeholder="https://meet.google.com/abc-defg-hij"
+                  className="flex-1 bg-slate-900/50 border-slate-700"
+                />
+                <Button
+                  onClick={() => updateMeetingUrlMutation.mutate(meetingUrlInput)}
+                  disabled={!meetingUrlInput || updateMeetingUrlMutation.isPending}
+                  className="bg-violet-500 hover:bg-violet-600 text-white rounded-xl"
+                >
+                  {updateMeetingUrlMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Check className="h-4 w-4" />
+                  )}
+                </Button>
+                <Button
+                  onClick={() => {
+                    setShowMeetingUrlInput(false);
+                    setMeetingUrlInput("");
+                  }}
+                  variant="ghost"
+                  className="text-slate-400 hover:text-white rounded-xl"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Button
+              onClick={() => setShowMeetingUrlInput(true)}
+              variant="outline"
+              className="w-full border-slate-700 text-slate-300 hover:bg-slate-800 rounded-xl h-12"
+            >
+              <Link2 className="h-4 w-4 mr-2" />
+              Add Meeting Link
+            </Button>
+          )}
+        </div>
+
+        {/* Continue to voting button */}
         <Button
           onClick={() => startVotingMutation.mutate()}
           disabled={startVotingMutation.isPending}
-          className="bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 text-white border-0 rounded-xl"
+          className="w-full bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 text-white border-0 rounded-xl h-12"
         >
           {startVotingMutation.isPending ? (
             <Loader2 className="h-4 w-4 animate-spin mr-2" />
           ) : (
-            <Video className="h-4 w-4 mr-2" />
+            <ArrowRight className="h-4 w-4 mr-2" />
           )}
           Continue to Voting
         </Button>
@@ -679,9 +799,12 @@ export function ReviewCall({ groupId, groupName, currentUserId }: ReviewCallProp
                   <span className="font-medium text-white">{rule.title}</span>
                 </div>
                 <div className="space-y-1">
-                  {memberVotes.map(({ member, vote }) => (
+                  {memberVotes.map(({ member, vote, isSelf }) => (
                     <div key={member.id} className="flex items-center justify-between text-sm">
-                      <span className="text-slate-300">{member.name}</span>
+                      <span className="text-slate-300">
+                        {member.name}
+                        {isSelf && <span className="text-violet-400 ml-1">(You)</span>}
+                      </span>
                       <span className={vote === "YES" ? "text-emerald-400" : "text-red-400"}>
                         {vote === "YES" ? "✓ Followed" : "✗ Did not follow"}
                       </span>
@@ -720,6 +843,34 @@ export function ReviewCall({ groupId, groupName, currentUserId }: ReviewCallProp
 
   return (
     <div className="space-y-4">
+      {/* Join Call Banner - show if meeting URL exists */}
+      {call.meetingUrl && (
+        <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
+                <Video className="h-5 w-5 text-emerald-400" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-sm font-medium text-white">Video Call Active</div>
+                <div className="text-xs text-slate-400">Vote while on the call</div>
+              </div>
+            </div>
+            <a
+              href={call.meetingUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-shrink-0"
+            >
+              <Button size="sm" className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl">
+                <ExternalLink className="h-4 w-4 mr-1" />
+                Join
+              </Button>
+            </a>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -765,14 +916,15 @@ export function ReviewCall({ groupId, groupName, currentUserId }: ReviewCallProp
               Did each member follow this rule for the entire pact?
             </p>
             <p className="text-xs text-amber-400">
-              You must vote YES or NO for each member to continue.
+              You must vote YES or NO for each member (including yourself) to continue.
             </p>
           </div>
 
-          {/* Member voting - explicit YES/NO buttons */}
+          {/* Member voting - explicit YES/NO buttons (including self) */}
           <div className="space-y-3">
-            {otherMembers.map((member) => {
+            {votingMembers.map((member) => {
               const vote = getMemberVote(currentRule.id, member.id);
+              const isSelf = member.id === currentUserId;
               return (
                 <div
                   key={member.id}
@@ -782,7 +934,7 @@ export function ReviewCall({ groupId, groupName, currentUserId }: ReviewCallProp
                       : vote === "YES"
                       ? "bg-emerald-500/10 border border-emerald-500/30"
                       : "bg-red-500/10 border border-red-500/30"
-                  }`}
+                  } ${isSelf ? "ring-2 ring-violet-500/30" : ""}`}
                 >
                   <div className="flex items-center gap-3 mb-2">
                     <Avatar className="h-8 w-8">
@@ -791,7 +943,10 @@ export function ReviewCall({ groupId, groupName, currentUserId }: ReviewCallProp
                         {getInitials(member.name)}
                       </AvatarFallback>
                     </Avatar>
-                    <span className="font-medium text-white flex-1">{member.name}</span>
+                    <span className="font-medium text-white flex-1">
+                      {member.name}
+                      {isSelf && <span className="text-violet-400 text-xs ml-2">(You)</span>}
+                    </span>
                     {vote === "YES" && <CheckCircle2 className="h-5 w-5 text-emerald-400" />}
                     {vote === "NO" && <XCircle className="h-5 w-5 text-red-400" />}
                   </div>
@@ -806,7 +961,7 @@ export function ReviewCall({ groupId, groupName, currentUserId }: ReviewCallProp
                       }`}
                     >
                       <Check className="h-4 w-4 mr-1" />
-                      Yes, followed
+                      {isSelf ? "I followed" : "Yes, followed"}
                     </Button>
                     <Button
                       onClick={() => setMemberVote(currentRule.id, member.id, "NO")}
@@ -818,7 +973,7 @@ export function ReviewCall({ groupId, groupName, currentUserId }: ReviewCallProp
                       }`}
                     >
                       <X className="h-4 w-4 mr-1" />
-                      No, didn&apos;t follow
+                      {isSelf ? "I didn't follow" : "No, didn't follow"}
                     </Button>
                   </div>
                 </div>

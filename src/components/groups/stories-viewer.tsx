@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { X, ChevronLeft, ChevronRight, Play, Pause, Volume2, VolumeX } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
+import { AudioPlayer } from "@/components/ui/audio-player";
 
 interface Story {
   id: string;
@@ -335,18 +336,12 @@ export function StoriesViewer({
         )}
 
         {currentStory.mediaType === "AUDIO" && currentStory.mediaUrl && (
-          <div className="w-full max-w-sm p-8 rounded-3xl bg-gradient-to-br from-violet-600 to-indigo-700 flex flex-col items-center gap-6">
-            <div className="w-24 h-24 rounded-full bg-white/20 flex items-center justify-center animate-pulse">
-              <Volume2 className="h-12 w-12 text-white" />
-            </div>
-            <audio
-              ref={audioRef}
-              src={currentStory.mediaUrl}
-              autoPlay
-              muted={isMuted}
-            />
-            <p className="text-white/80 text-center">Voice Story</p>
-          </div>
+          <AudioPlayer
+            src={currentStory.mediaUrl}
+            caption={currentStory.caption || "Voice Story"}
+            autoPlay={!isMuted}
+            className="w-full max-w-sm"
+          />
         )}
 
         {currentStory.mediaType === "TEXT" && (
