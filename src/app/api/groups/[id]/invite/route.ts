@@ -109,27 +109,32 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         console.log(`[INVITE] Created ${memberships.count} memberships`);
 
         // Create notifications for invited users with CTA deep-link data
-        const notificationData = validUserIds.map((userId) => ({
-          userId,
-          type: "PACT_MEMBER_ADDED" as const,
-          title: "You've been added to a pact! 🎯",
-          message: `${session.user.name || "Someone"} added you to "${group.name}". Tap to add your rule and join.`,
-          data: JSON.parse(JSON.stringify({ 
-            groupId, 
-            groupSlug: group.slug,
-            creatorId: session.user.id, 
-            creatorName: session.user.name || null,
-            groupName: group.name,
-            action: "ADD_RULE",
-            deepLink: `/groups/${groupId}`,
-          })),
-        }));
-        console.log(`[INVITE] Notification data prepared:`, JSON.stringify(notificationData, null, 2));
-        
-        const notifications = await tx.notification.createMany({
-          data: notificationData,
-        });
-        console.log(`[INVITE] Created ${notifications.count} PACT_MEMBER_ADDED notifications`);
+        try {
+          const notificationData = validUserIds.map((userId) => ({
+            userId,
+            type: "PACT_MEMBER_ADDED" as const,
+            title: "You've been added to a pact! 🎯",
+            message: `${session.user.name || "Someone"} added you to "${group.name}". Tap to add your rule and join.`,
+            data: JSON.parse(JSON.stringify({ 
+              groupId, 
+              groupSlug: group.slug,
+              creatorId: session.user.id, 
+              creatorName: session.user.name || null,
+              groupName: group.name,
+              action: "ADD_RULE",
+              deepLink: `/groups/${groupId}`,
+            })),
+          }));
+          console.log(`[INVITE] Creating ${notificationData.length} notifications`);
+          
+          const notifications = await tx.notification.createMany({
+            data: notificationData,
+          });
+          console.log(`[INVITE] Created ${notifications.count} PACT_MEMBER_ADDED notifications`);
+        } catch (notifError) {
+          console.error(`[INVITE] Failed to create notifications (non-fatal):`, notifError);
+          // Don't throw - notifications are secondary, memberships are already created
+        }
       });
     } catch (txError) {
       console.error(`[INVITE] Transaction failed:`, txError);

@@ -150,17 +150,23 @@ export async function POST(request: Request, { params }: RouteParams) {
     );
 
     // Notify all members that challenge has started
-    await prisma.notification.createMany({
-      data: group.memberships
+    try {
+      const notificationData = group.memberships
         .filter((m) => m.userId !== session.user.id)
         .map((m) => ({
           userId: m.userId,
-          type: "GROUP_STARTED",
+          type: "GROUP_STARTED" as const,
           title: "Challenge Started! 🚀",
           message: `${group.name} has begun! Good luck!`,
           data: JSON.parse(JSON.stringify({ groupId: group.id, groupName: group.name })),
-        })),
-    });
+        }));
+      console.log(`[START] Creating notifications for ${notificationData.length} members`);
+      const result = await prisma.notification.createMany({ data: notificationData });
+      console.log(`[START] Created ${result.count} notifications`);
+    } catch (notifError) {
+      console.error(`[START] Failed to create notifications (non-fatal):`, notifError);
+      // Don't throw - notifications are non-critical, group is already started
+    }
 
     console.log(`[START] Group ${groupId} started successfully`);
 
