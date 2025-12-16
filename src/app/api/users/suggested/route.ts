@@ -10,6 +10,8 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    console.log("[SUGGESTED] Fetching suggested users for:", session.user.id);
+
     // Get IDs of existing friends and pending requests
     const existingConnections = await prisma.friendship.findMany({
       where: {
@@ -25,10 +27,14 @@ export async function GET() {
       },
     });
 
+    console.log("[SUGGESTED] Existing connections:", existingConnections.length);
+
     const connectedUserIds = new Set(
       existingConnections.flatMap((c: { requesterId: string; receiverId: string }) => [c.requesterId, c.receiverId])
     );
     connectedUserIds.add(session.user.id);
+
+    console.log("[SUGGESTED] Excluding user IDs:", Array.from(connectedUserIds));
 
     // Get users who are not already connected
     const suggestedUsers = await prisma.user.findMany({
@@ -50,8 +56,10 @@ export async function GET() {
       orderBy: {
         createdAt: "desc",
       },
-      take: 10,
+      take: 20, // Increased from 10 to show more users
     });
+
+    console.log("[SUGGESTED] Found users:", suggestedUsers.length);
 
     // Transform to expected format with defensive defaults
     const usersWithStatus = suggestedUsers.map((user: any) => ({
@@ -67,9 +75,10 @@ export async function GET() {
       hasPendingRequest: false,
     }));
 
-    return NextResponse.json(usersWithStatus);
+    // Always return an array (empty if no users found)
+    return NextResponse.json(usersWithStatus || []);
   } catch (error) {
-    console.error("Error fetching suggested users:", error);
+    console.error("[SUGGESTED] Error fetching suggested users:", error);
     return NextResponse.json(
       { error: "Failed to fetch suggestions" },
       { status: 500 }
