@@ -445,8 +445,8 @@ function JoinModal({
               <Input
                 id="stake"
                 type="number"
-                min="10"
-                step="10"
+                min="1"
+                step="1"
                 placeholder="100"
                 value={stakeAmount}
                 onChange={(e) => setStakeAmount(e.target.value)}
@@ -454,13 +454,13 @@ function JoinModal({
               />
             </div>
             <p className="text-xs text-white/50">
-              This is what you'll pay if you fail your rule.
+              Minimum ₹1. This is what you'll pay if you fail your rule.
             </p>
           </div>
 
           {/* Preset Stakes */}
           <div className="flex gap-2">
-            {[50, 100, 200, 500].map((amount) => (
+            {[1, 50, 100, 500].map((amount) => (
               <button
                 key={amount}
                 type="button"

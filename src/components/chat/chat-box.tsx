@@ -22,6 +22,53 @@ import { useSocket } from "@/components/providers/socket-provider";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
+// URL regex pattern that matches http(s), www, and common TLDs
+const URL_REGEX = /(?:https?:\/\/|www\.)[^\s<>\[\]{}|\\^`"']+|(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+(?:com|org|net|io|app|dev|co|in|me|ai|xyz)[^\s<>\[\]{}|\\^`"']*/gi;
+
+// Helper function to render message content with clickable links
+function renderMessageContent(content: string): React.ReactNode {
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match;
+  
+  // Reset regex state
+  URL_REGEX.lastIndex = 0;
+  
+  while ((match = URL_REGEX.exec(content)) !== null) {
+    // Add text before the URL
+    if (match.index > lastIndex) {
+      parts.push(content.slice(lastIndex, match.index));
+    }
+    
+    // Add the URL as a clickable link
+    let url = match[0];
+    // Add protocol if missing
+    const href = url.startsWith("http") ? url : `https://${url}`;
+    
+    parts.push(
+      <a
+        key={match.index}
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-[var(--accent-cyan)] hover:underline break-all"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {url}
+      </a>
+    );
+    
+    lastIndex = match.index + match[0].length;
+  }
+  
+  // Add remaining text after last URL
+  if (lastIndex < content.length) {
+    parts.push(content.slice(lastIndex));
+  }
+  
+  return parts.length > 0 ? parts : content;
+}
+
 interface Message {
   id: string;
   content: string | null;
@@ -354,7 +401,7 @@ export function ChatBox({ type, id, recipientId }: ChatBoxProps) {
                           {msg.sender.name}
                         </p>
                       )}
-                      <p className="text-sm text-white">{msg.content}</p>
+                      <p className="text-sm text-white whitespace-pre-wrap">{renderMessageContent(msg.content)}</p>
                     </div>
                   )}
                   
