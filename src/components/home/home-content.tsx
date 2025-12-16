@@ -326,13 +326,16 @@ export function HomeContent({ userId }: HomeContentProps) {
             </div>
             <div className="space-y-3">
               {planningGroups.map((group) => {
-                const membersWithRules = group.memberships.filter(m => m.isReady).length;
+                // Count members who have created a rule (not isReady flag)
+                const membersWithRules = group.memberships.filter(m => 
+                  group.rules?.some(r => r.creatorId === m.user.id)
+                ).length;
                 const totalMembers = group.memberships.length;
                 const isCreator = group.createdByUserId === userId;
                 const canStart = isCreator && membersWithRules >= 2 && membersWithRules === totalMembers;
                 // Check if current user has added their rule
                 const hasAddedRule = group.rules?.some(r => r.creatorId === userId) ?? false;
-                const needsToAddRule = !isCreator && !hasAddedRule;
+                const needsToAddRule = !hasAddedRule;
                 
                 return (
                   <Link key={group.id} href={`/groups/${group.id}`}>
