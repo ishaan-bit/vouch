@@ -1,11 +1,12 @@
 "use client";
 
 import { use } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Users, Loader2 } from "lucide-react";
+import { ArrowLeft, Users, Loader2, Video } from "lucide-react";
 import { ChatBox } from "@/components/chat/chat-box";
+import { toast } from "sonner";
 
 interface GroupChatPageProps {
   params: Promise<{ id: string }>;
@@ -21,6 +22,33 @@ export default function GroupChatPage({ params }: GroupChatPageProps) {
       const res = await fetch(`/api/groups/${id}`);
       if (!res.ok) throw new Error("Failed to fetch group");
       return res.json();
+    },
+  });
+
+  // Start instant call mutation (P1 fix K)
+  const startCallMutation = useMutation({
+    mutationFn: async () => {
+      const now = new Date();
+      const res = await fetch(`/api/groups/${id}/calls`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: "Quick Call",
+          scheduledFor: now.toISOString(),
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to start call");
+      }
+      return res.json();
+    },
+    onSuccess: (call) => {
+      // Navigate to the call page
+      router.push(`/groups/${id}/call?callId=${call.id}`);
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to start call");
     },
   });
 
@@ -49,6 +77,22 @@ export default function GroupChatPage({ params }: GroupChatPageProps) {
               {group?.memberships?.length || 0} members
             </p>
           </div>
+          {/* Start Call Button (P1 fix K) */}
+          {group?.status === "ACTIVE" && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => startCallMutation.mutate()}
+              disabled={startCallMutation.isPending}
+              className="text-violet-400 hover:text-violet-300 hover:bg-violet-500/10"
+            >
+              {startCallMutation.isPending ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <Video className="h-5 w-5" />
+              )}
+            </Button>
+          )}
         </div>
       </div>
 

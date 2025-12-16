@@ -216,7 +216,21 @@ export function EditProfileContent({ userId }: EditProfileContentProps) {
               className="hidden"
             />
           </div>
-          <p className="text-xs text-white/40">Tap to change avatar</p>
+          <div className="flex gap-2">
+            <p className="text-xs text-white/40">Tap to change avatar</p>
+            {avatarUrl && (
+              <button
+                type="button"
+                onClick={() => {
+                  setAvatarUrl(null);
+                  toast.success("Avatar removed");
+                }}
+                className="text-xs text-red-400 hover:text-red-300 underline"
+              >
+                Remove
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Name */}

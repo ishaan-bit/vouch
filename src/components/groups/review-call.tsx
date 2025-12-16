@@ -299,23 +299,23 @@ export function ReviewCall({ groupId, groupName, currentUserId }: ReviewCallProp
     [callDetails]
   );
 
-  // Get only the current user's rules
-  const myRules = useMemo(
-    () => rules.filter((r) => r.creatorId === currentUserId),
-    [rules, currentUserId]
+  // Get ALL rules (user votes on all rules for OTHER members)
+  const allRules = useMemo(
+    () => rules,
+    [rules]
   );
 
-  // Get all members including self (for voting on own rules)
+  // For backward compatibility - keeping myRules as alias
+  const myRules = allRules;
+
+  // Get OTHER members only (you never vote on yourself)
   const votingMembers = useMemo(
-    () => members,
-    [members]
-  );
-
-  // Get other members (excluding self) - kept for backward compatibility
-  const otherMembers = useMemo(
     () => members.filter((m) => m.id !== currentUserId),
     [members, currentUserId]
   );
+
+  // Alias for clarity
+  const otherMembers = votingMembers;
 
   const currentRule = myRules[currentRuleIndex];
 
@@ -375,14 +375,13 @@ export function ReviewCall({ groupId, groupName, currentUserId }: ReviewCallProp
     });
   };
 
-  // Get summary of votes for confirmation (including self)
+  // Get summary of votes for confirmation (other members only)
   const getVoteSummary = () => {
     return myRules.map((rule) => {
       const ruleVotes = votesMap.get(rule.id);
       const memberVotes = votingMembers.map((member) => ({
         member,
         vote: ruleVotes?.get(member.id) || "PENDING",
-        isSelf: member.id === currentUserId,
       }));
       return { rule, memberVotes };
     });
@@ -799,11 +798,10 @@ export function ReviewCall({ groupId, groupName, currentUserId }: ReviewCallProp
                   <span className="font-medium text-white">{rule.title}</span>
                 </div>
                 <div className="space-y-1">
-                  {memberVotes.map(({ member, vote, isSelf }) => (
+                  {memberVotes.map(({ member, vote }) => (
                     <div key={member.id} className="flex items-center justify-between text-sm">
                       <span className="text-slate-300">
                         {member.name}
-                        {isSelf && <span className="text-violet-400 ml-1">(You)</span>}
                       </span>
                       <span className={vote === "YES" ? "text-emerald-400" : "text-red-400"}>
                         {vote === "YES" ? "✓ Followed" : "✗ Did not follow"}
@@ -916,7 +914,7 @@ export function ReviewCall({ groupId, groupName, currentUserId }: ReviewCallProp
               Did each member follow this rule for the entire pact?
             </p>
             <p className="text-xs text-amber-400">
-              You must vote YES or NO for each member (including yourself) to continue.
+              Vote YES or NO for each other member. You don't vote on yourself.
             </p>
           </div>
 
@@ -924,7 +922,6 @@ export function ReviewCall({ groupId, groupName, currentUserId }: ReviewCallProp
           <div className="space-y-3">
             {votingMembers.map((member) => {
               const vote = getMemberVote(currentRule.id, member.id);
-              const isSelf = member.id === currentUserId;
               return (
                 <div
                   key={member.id}
@@ -934,7 +931,7 @@ export function ReviewCall({ groupId, groupName, currentUserId }: ReviewCallProp
                       : vote === "YES"
                       ? "bg-emerald-500/10 border border-emerald-500/30"
                       : "bg-red-500/10 border border-red-500/30"
-                  } ${isSelf ? "ring-2 ring-violet-500/30" : ""}`}
+                  }`}
                 >
                   <div className="flex items-center gap-3 mb-2">
                     <Avatar className="h-8 w-8">
@@ -945,7 +942,6 @@ export function ReviewCall({ groupId, groupName, currentUserId }: ReviewCallProp
                     </Avatar>
                     <span className="font-medium text-white flex-1">
                       {member.name}
-                      {isSelf && <span className="text-violet-400 text-xs ml-2">(You)</span>}
                     </span>
                     {vote === "YES" && <CheckCircle2 className="h-5 w-5 text-emerald-400" />}
                     {vote === "NO" && <XCircle className="h-5 w-5 text-red-400" />}
@@ -961,7 +957,7 @@ export function ReviewCall({ groupId, groupName, currentUserId }: ReviewCallProp
                       }`}
                     >
                       <Check className="h-4 w-4 mr-1" />
-                      {isSelf ? "I followed" : "Yes, followed"}
+                      Yes, followed
                     </Button>
                     <Button
                       onClick={() => setMemberVote(currentRule.id, member.id, "NO")}
@@ -973,7 +969,7 @@ export function ReviewCall({ groupId, groupName, currentUserId }: ReviewCallProp
                       }`}
                     >
                       <X className="h-4 w-4 mr-1" />
-                      {isSelf ? "I didn't follow" : "No, didn't follow"}
+                      No, didn't follow
                     </Button>
                   </div>
                 </div>

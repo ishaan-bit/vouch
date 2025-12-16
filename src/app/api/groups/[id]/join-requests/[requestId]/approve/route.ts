@@ -24,7 +24,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // Verify user is the group creator
     const group = await prisma.group.findUnique({
       where: { id: groupId },
-      select: { createdByUserId: true, name: true },
+      select: { 
+        createdByUserId: true, 
+        name: true,
+        memberships: {
+          select: { userId: true }
+        }
+      },
     });
 
     if (!group) {
@@ -87,12 +93,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         },
       });
 
-      // Notify the user
+      // Notify the approved user
       await tx.notification.create({
         data: {
           userId: joinRequest.userId,
           type: "JOIN_APPROVED",
-          title: "Request approved!",
+          title: "Request approved! 🎉",
           message: `Your request to join "${group.name}" has been approved`,
           data: {
             groupId,
@@ -100,6 +106,28 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           },
         },
       });
+
+      // Notify ALL EXISTING members that someone new joined (P0 fix)
+      const existingMemberIds = group.memberships
+        .map(m => m.userId)
+        .filter(id => id !== joinRequest.userId && id !== session.user.id);
+
+      if (existingMemberIds.length > 0) {
+        await tx.notification.createMany({
+          data: existingMemberIds.map(memberId => ({
+            userId: memberId,
+            type: "PACT_MEMBER_ADDED" as const,
+            title: "New pact member! 👋",
+            message: `${joinRequest.user.name || "Someone"} just joined "${group.name}"`,
+            data: {
+              groupId,
+              groupName: group.name,
+              newMemberId: joinRequest.userId,
+              newMemberName: joinRequest.user.name,
+            },
+          })),
+        });
+      }
     });
 
     return NextResponse.json({

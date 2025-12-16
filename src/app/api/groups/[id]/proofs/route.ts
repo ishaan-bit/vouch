@@ -134,6 +134,11 @@ export async function POST(request: Request, { params }: RouteParams) {
     // Check group is active
     const group = await prisma.group.findUnique({
       where: { id: groupId },
+      include: {
+        memberships: {
+          select: { userId: true },
+        },
+      },
     });
 
     if (group?.status !== "ACTIVE") {
@@ -183,6 +188,32 @@ export async function POST(request: Request, { params }: RouteParams) {
         },
       },
     });
+
+    // Notify other group members about the new proof (P1 fix H)
+    if (group) {
+      const otherMemberIds = group.memberships
+        .map(m => m.userId)
+        .filter(id => id !== session.user.id);
+
+      if (otherMemberIds.length > 0) {
+        await prisma.notification.createMany({
+          data: otherMemberIds.map(memberId => ({
+            userId: memberId,
+            type: "PROOF_UPLOADED" as const,
+            title: "New proof uploaded! 📸",
+            message: `${session.user.name || "A member"} uploaded a proof in "${group.name}"`,
+            data: {
+              groupId,
+              groupName: group.name,
+              proofId: proof.id,
+              uploaderId: session.user.id,
+              uploaderName: session.user.name,
+              mediaType,
+            },
+          })),
+        });
+      }
+    }
 
     return NextResponse.json(proof, { status: 201 });
   } catch (error) {

@@ -30,11 +30,17 @@ export async function POST(request: Request, { params }: RouteParams) {
       return NextResponse.json({ error: "Not a member" }, { status: 403 });
     }
 
-    // Get the rule
+    // Get the rule with creator info
     const rule = await prisma.rule.findUnique({
       where: { id: ruleId },
       include: {
         approvals: true,
+        creator: {
+          select: { id: true, name: true },
+        },
+        group: {
+          select: { name: true },
+        },
       },
     });
 
@@ -73,6 +79,24 @@ export async function POST(request: Request, { params }: RouteParams) {
       },
     });
 
+    // NOTIFY the rule creator that someone approved their rule (P0 fix D)
+    await prisma.notification.create({
+      data: {
+        userId: rule.creatorId,
+        type: "RULE_APPROVED",
+        title: "Rule approved! ✅",
+        message: `${session.user.name || "A pact member"} approved your rule "${rule.title}" in "${rule.group.name}"`,
+        data: {
+          groupId,
+          groupName: rule.group.name,
+          ruleId,
+          ruleTitle: rule.title,
+          approverId: session.user.id,
+          approverName: session.user.name,
+        },
+      },
+    });
+
     // Check if all members (except creator) have approved
     const group = await prisma.group.findUnique({
       where: { id: groupId },
@@ -100,6 +124,22 @@ export async function POST(request: Request, { params }: RouteParams) {
         await prisma.rule.update({
           where: { id: ruleId },
           data: { approved: true },
+        });
+
+        // Notify the rule creator that their rule is fully approved
+        await prisma.notification.create({
+          data: {
+            userId: rule.creatorId,
+            type: "RULE_FULLY_APPROVED",
+            title: "Rule fully approved! 🎉",
+            message: `Your rule "${rule.title}" has been approved by all members and is now active!`,
+            data: {
+              groupId,
+              groupName: rule.group.name,
+              ruleId,
+              ruleTitle: rule.title,
+            },
+          },
         });
       }
     }
