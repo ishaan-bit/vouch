@@ -155,10 +155,10 @@ export async function POST(request: Request, { params }: RouteParams) {
         .filter((m) => m.userId !== session.user.id)
         .map((m) => ({
           userId: m.userId,
-          type: "GROUP_STARTED" as const,
+          type: "GROUP_STARTED",
           title: "Challenge Started! 🚀",
           message: `${group.name} has begun! Good luck!`,
-          data: { groupId: group.id, groupName: group.name },
+          data: JSON.parse(JSON.stringify({ groupId: group.id, groupName: group.name })),
         })),
     });
 
