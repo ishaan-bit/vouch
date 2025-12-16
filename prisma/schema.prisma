@@ -50,6 +50,8 @@ model User {
 
   // Proofs
   proofs Proof[]
+  proofReactions ProofReaction[]
+  proofComments ProofComment[] @relation("ProofCommentAuthor")
 
   // Chat
   sentMessages ChatMessage[]
@@ -304,6 +306,7 @@ model Proof {
   uploader User            @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
   ruleLinks ProofRuleLink[]
   reactions ProofReaction[]
+  comments  ProofComment[]
 }
 
 model ProofRuleLink {
@@ -321,12 +324,25 @@ model ProofReaction {
   id        String   @id @default(cuid())
   proofId   String
   userId    String
-  emoji     String   // 🔥, 👏, 💀, etc.
+  emoji     String   // 🔥, 👏, 💀, 👍, 👎 etc.
   createdAt DateTime @default(now())
 
   proof Proof @relation(fields: [proofId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([proofId, userId])
+  @@unique([proofId, userId, emoji])
+}
+
+model ProofComment {
+  id        String   @id @default(cuid())
+  proofId   String
+  authorId  String
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  proof  Proof @relation(fields: [proofId], references: [id], onDelete: Cascade)
+  author User  @relation("ProofCommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
 }
 
 // ============================================
@@ -373,7 +389,9 @@ model DmThread {
 
 enum CallStatus {
   SCHEDULED
-  ONGOING
+  RINGING    // Call initiated, waiting for others to join
+  LIVE       // Call in progress with participants
+  ONGOING    // Voting phase after call ended (or skipped)
   COMPLETED
   CANCELLED
 }

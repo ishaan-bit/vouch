@@ -6,3 +6,4 @@ export { CreateGroupForm } from "./create-group-form";
 export { GroupDetailContent } from "./group-detail-content";
 export { GroupNonMemberView } from "./group-non-member-view";
 export { ReviewCall } from "./review-call";
+export { ActiveChallengeHub } from "./active-challenge-hub";

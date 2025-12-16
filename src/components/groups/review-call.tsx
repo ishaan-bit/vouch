@@ -22,7 +22,26 @@ import {
   X,
   XCircle,
   Link2,
+  Clock,
+  AlertCircle,
 } from "lucide-react";
+
+// Types for finalize error responses
+interface MissingVoter {
+  id: string;
+  name: string;
+  pendingRules: string[];
+}
+
+interface FinalizeErrorDetails {
+  error: string;
+  message: string;
+  details?: {
+    missingVoters?: MissingVoter[];
+    votedCount?: number;
+    totalRequired?: number;
+  };
+}
 import { buildUpiUri } from "@/lib/upi";
 
 interface ReviewCallProps {
@@ -76,6 +95,9 @@ export function ReviewCall({ groupId, groupName, currentUserId }: ReviewCallProp
   // State for meeting URL
   const [meetingUrlInput, setMeetingUrlInput] = useState("");
   const [showMeetingUrlInput, setShowMeetingUrlInput] = useState(false);
+  
+  // State for finalize error details
+  const [finalizeError, setFinalizeError] = useState<FinalizeErrorDetails | null>(null);
 
   // Fetch active call
   const { data: call, isLoading: callLoading } = useQuery({
@@ -174,6 +196,22 @@ export function ReviewCall({ groupId, groupName, currentUserId }: ReviewCallProp
     },
   });
 
+  // Join call mutation (marks call as LIVE)
+  const joinCallMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/calls/${call.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "LIVE" }),
+      });
+      if (!res.ok) throw new Error("Failed to update call status");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["call", groupId] });
+    },
+  });
+
   // Submit votes mutation
   const submitVotesMutation = useMutation({
     mutationFn: async () => {
@@ -240,21 +278,25 @@ export function ReviewCall({ groupId, groupName, currentUserId }: ReviewCallProp
       const res = await fetch(`/api/calls/${call.id}/finalize`, {
         method: "POST",
       });
+      const data = await res.json();
       if (!res.ok) {
-        const data = await res.json();
-        // Include detailed message if available
-        const errorMessage = data.message || data.error || "Failed to finalize";
-        throw new Error(errorMessage);
+        // Store detailed error for UI display
+        setFinalizeError(data);
+        throw new Error(data.message || data.error || "Failed to finalize");
       }
-      return res.json();
+      return data;
     },
     onSuccess: () => {
+      setFinalizeError(null);
       toast.success("Voting finalized! Payment obligations calculated.");
       queryClient.invalidateQueries({ queryKey: ["call", groupId] });
       queryClient.invalidateQueries({ queryKey: ["obligations", groupId] });
     },
     onError: (err: Error) => {
-      toast.error(err.message);
+      // Don't show toast for MISSING_VOTES - we show inline UI instead
+      if (finalizeError?.error !== "MISSING_VOTES") {
+        toast.error(err.message);
+      }
     },
   });
 
@@ -456,19 +498,29 @@ export function ReviewCall({ groupId, groupName, currentUserId }: ReviewCallProp
     );
   }
 
-  // Call scheduled - waiting to start voting
-  if (call.status === "SCHEDULED") {
+  // Call scheduled/ringing - waiting to join the call
+  if (call.status === "SCHEDULED" || call.status === "RINGING" || call.status === "LIVE") {
     return (
       <div className="p-6 rounded-3xl bg-slate-900/50 border border-slate-800/50 space-y-6">
         <div className="text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-amber-500/20 mb-4">
-            <Users className="h-8 w-8 text-amber-400" />
+          <div className={`inline-flex items-center justify-center w-16 h-16 rounded-full mb-4 ${
+            call.status === "LIVE" ? "bg-emerald-500/20" : "bg-amber-500/20"
+          }`}>
+            {call.status === "LIVE" ? (
+              <Video className="h-8 w-8 text-emerald-400" />
+            ) : (
+              <Users className="h-8 w-8 text-amber-400" />
+            )}
           </div>
-          <h3 className="text-xl font-semibold text-white mb-2">Review Call Ready</h3>
+          <h3 className="text-xl font-semibold text-white mb-2">
+            {call.status === "LIVE" ? "Call in Progress" : "Review Call Ready"}
+          </h3>
           <p className="text-slate-400">
-            {call.meetingUrl 
-              ? "Join the video call, then vote on who followed the rules"
-              : "Add a meeting link so everyone can join the call"}
+            {call.status === "LIVE"
+              ? "Join the call with your group, then proceed to voting when done"
+              : call.meetingUrl 
+                ? "Join the video call, then vote on who followed the rules"
+                : "Add a meeting link so everyone can join the call"}
           </p>
         </div>
 
@@ -491,10 +543,16 @@ export function ReviewCall({ groupId, groupName, currentUserId }: ReviewCallProp
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex-shrink-0"
+                  onClick={() => {
+                    // Transition to LIVE state when joining
+                    if (call.status !== "LIVE") {
+                      joinCallMutation.mutate();
+                    }
+                  }}
                 >
                   <Button className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl">
                     <ExternalLink className="h-4 w-4 mr-2" />
-                    Join Call
+                    {call.status === "LIVE" ? "Rejoin Call" : "Join Call"}
                   </Button>
                 </a>
               </div>
@@ -547,18 +605,43 @@ export function ReviewCall({ groupId, groupName, currentUserId }: ReviewCallProp
         </div>
 
         {/* Continue to voting button */}
-        <Button
-          onClick={() => startVotingMutation.mutate()}
-          disabled={startVotingMutation.isPending}
-          className="w-full bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 text-white border-0 rounded-xl h-12"
-        >
-          {startVotingMutation.isPending ? (
-            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+        <div className="space-y-3">
+          {call.status === "LIVE" ? (
+            <Button
+              onClick={() => startVotingMutation.mutate()}
+              disabled={startVotingMutation.isPending}
+              className="w-full bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 text-white border-0 rounded-xl h-12"
+            >
+              {startVotingMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <CheckCircle2 className="h-4 w-4 mr-2" />
+              )}
+              Done with Call → Start Voting
+            </Button>
           ) : (
-            <ArrowRight className="h-4 w-4 mr-2" />
+            <>
+              {call.meetingUrl && (
+                <p className="text-center text-sm text-slate-500">
+                  Join the call first, or skip if you prefer
+                </p>
+              )}
+              <Button
+                onClick={() => startVotingMutation.mutate()}
+                disabled={startVotingMutation.isPending}
+                variant="outline"
+                className="w-full border-slate-700 text-slate-300 hover:bg-slate-800 rounded-xl h-12"
+              >
+                {startVotingMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <ArrowRight className="h-4 w-4 mr-2" />
+                )}
+                Skip Call & Vote Now
+              </Button>
+            </>
           )}
-          Continue to Voting
-        </Button>
+        </div>
       </div>
     );
   }
@@ -584,18 +667,72 @@ export function ReviewCall({ groupId, groupName, currentUserId }: ReviewCallProp
 
         {/* Finalize button if voting done but not finalized */}
         {hasSubmitted && call.status === "ONGOING" && (
-          <Button
-            onClick={() => finalizeMutation.mutate()}
-            disabled={finalizeMutation.isPending}
-            className="w-full bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:from-violet-600 hover:to-fuchsia-600 text-white border-0 rounded-xl h-12"
-          >
-            {finalizeMutation.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-            ) : (
-              <Trophy className="h-4 w-4 mr-2" />
+          <div className="space-y-4">
+            <Button
+              onClick={() => finalizeMutation.mutate()}
+              disabled={finalizeMutation.isPending}
+              className="w-full bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:from-violet-600 hover:to-fuchsia-600 text-white border-0 rounded-xl h-12"
+            >
+              {finalizeMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Trophy className="h-4 w-4 mr-2" />
+              )}
+              Finalize & Calculate Payouts
+            </Button>
+            
+            {/* Show missing voters if finalize failed due to incomplete voting */}
+            {finalizeError?.error === "MISSING_VOTES" && finalizeError.details && (
+              <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30">
+                <div className="flex items-start gap-3 mb-3">
+                  <Clock className="h-5 w-5 text-amber-400 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1">
+                    <h4 className="font-medium text-amber-300 mb-1">Waiting for votes</h4>
+                    <p className="text-sm text-slate-400">
+                      {finalizeError.details.votedCount} of {finalizeError.details.totalRequired} votes submitted
+                    </p>
+                  </div>
+                </div>
+                
+                {/* List of pending voters */}
+                {finalizeError.details.missingVoters && finalizeError.details.missingVoters.length > 0 && (
+                  <div className="space-y-2 mt-3">
+                    <p className="text-xs text-slate-500 uppercase tracking-wider">Pending from:</p>
+                    {finalizeError.details.missingVoters.map((voter) => (
+                      <div key={voter.id} className="flex items-center gap-2 p-2 rounded-lg bg-slate-900/50">
+                        <Avatar className="h-6 w-6">
+                          <AvatarFallback className="bg-amber-500/20 text-amber-300 text-xs">
+                            {voter.name.charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-white truncate">{voter.name}</p>
+                          {voter.pendingRules.length > 0 && (
+                            <p className="text-xs text-slate-500 truncate">
+                              {voter.pendingRules.length} rule{voter.pendingRules.length !== 1 ? 's' : ''} pending
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
-            Finalize & Calculate Payouts
-          </Button>
+            
+            {/* Show other finalize errors */}
+            {finalizeError && finalizeError.error !== "MISSING_VOTES" && (
+              <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/30">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="h-5 w-5 text-red-400 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <h4 className="font-medium text-red-300 mb-1">Cannot finalize</h4>
+                    <p className="text-sm text-slate-400">{finalizeError.message}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         )}
 
         {/* Settlement summary - only show when there are obligations */}

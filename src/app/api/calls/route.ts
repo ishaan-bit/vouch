@@ -40,23 +40,24 @@ export async function POST(request: NextRequest) {
     const activeCall = await prisma.callSession.findFirst({
       where: {
         groupId,
-        status: { in: ["SCHEDULED", "ONGOING"] },
+        status: { in: ["SCHEDULED", "RINGING", "LIVE", "ONGOING"] },
       },
     });
 
     if (activeCall) {
       return NextResponse.json(
-        { error: "There's already an active call", callId: activeCall.id },
+        { error: "There's already an active call", callId: activeCall.id, status: activeCall.status },
         { status: 400 }
       );
     }
 
-    // Create the call session
+    // Create the call session with RINGING status (call is starting)
     const call = await prisma.callSession.create({
       data: {
         groupId,
-        status: "SCHEDULED",
+        status: "RINGING",
         scheduledAt: new Date(),
+        startedAt: new Date(),
       },
     });
 
@@ -77,8 +78,8 @@ export async function POST(request: NextRequest) {
         .map((m: { userId: string }) => ({
           userId: m.userId,
           type: "CALL_STARTED" as const,
-          title: "Review call starting",
-          message: `Review call starting in ${group?.name || "your group"}`,
+          title: "📞 Group call starting!",
+          message: `${session.user.name || "Someone"} started a call in "${group?.name || "your group"}". Join now!`,
           data: { callId: call.id, groupId },
         })),
     });
@@ -111,11 +112,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // First try to find an active call
+    // First try to find an active call (in any active state)
     let call = await prisma.callSession.findFirst({
       where: {
         groupId,
-        status: { in: ["SCHEDULED", "ONGOING"] },
+        status: { in: ["SCHEDULED", "RINGING", "LIVE", "ONGOING"] },
       },
       include: {
         votes: {

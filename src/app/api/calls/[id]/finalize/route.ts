@@ -3,6 +3,29 @@ import { auth } from "@/lib/auth";
 import prisma from "@/lib/db";
 import { computePaymentObligations } from "@/lib/payouts";
 
+// Error codes for finalize endpoint
+type FinalizeErrorCode = 
+  | "UNAUTHORIZED"
+  | "NOT_FOUND"
+  | "FORBIDDEN"
+  | "CALL_NOT_ONGOING"
+  | "CALL_NOT_ENDED"
+  | "ALREADY_FINALIZED"
+  | "MISSING_VOTES"
+  | "NO_RULES"
+  | "INTERNAL_ERROR";
+
+interface FinalizeErrorResponse {
+  error: FinalizeErrorCode;
+  message: string;
+  details?: {
+    missingVoters?: { id: string; name: string | null; pendingRules: string[] }[];
+    votedCount?: number;
+    totalRequired?: number;
+    callStatus?: string;
+  };
+}
+
 interface RouteParams {
   params: Promise<{ id: string }>;
 }
@@ -12,10 +35,15 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      const errorResponse: FinalizeErrorResponse = {
+        error: "UNAUTHORIZED",
+        message: "You must be logged in to finalize a call",
+      };
+      return NextResponse.json(errorResponse, { status: 401 });
     }
 
     const { id } = await params;
+    console.log(`[FINALIZE] Starting finalize for call ${id}`);
 
     const call = await prisma.callSession.findUnique({
       where: { id },
@@ -44,7 +72,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     });
 
     if (!call) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
+      const errorResponse: FinalizeErrorResponse = {
+        error: "NOT_FOUND",
+        message: "Call session not found",
+      };
+      return NextResponse.json(errorResponse, { status: 404 });
     }
 
     // Check if user is a member
@@ -52,35 +84,67 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       (m: { userId: string }) => m.userId === session.user.id
     );
     if (!isMember) {
-      return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+      const errorResponse: FinalizeErrorResponse = {
+        error: "FORBIDDEN",
+        message: "You are not a member of this group",
+      };
+      return NextResponse.json(errorResponse, { status: 403 });
     }
 
-    if (call.status !== "ONGOING") {
-      return NextResponse.json(
-        { error: "Call must be ongoing to finalize" },
-        { status: 400 }
-      );
+    // Check call status
+    if (call.status === "COMPLETED") {
+      const errorResponse: FinalizeErrorResponse = {
+        error: "ALREADY_FINALIZED",
+        message: "This call has already been finalized",
+        details: { callStatus: call.status },
+      };
+      return NextResponse.json(errorResponse, { status: 400 });
     }
 
-    // Check if all members have voted on all rules
-    // Each rule creator must vote on all members (including themselves)
+    if (call.status !== "ONGOING" && call.status !== "SCHEDULED") {
+      const errorResponse: FinalizeErrorResponse = {
+        error: "CALL_NOT_ONGOING",
+        message: `Call must be in ONGOING or SCHEDULED state to finalize. Current state: ${call.status}`,
+        details: { callStatus: call.status },
+      };
+      return NextResponse.json(errorResponse, { status: 400 });
+    }
+
     const members = call.group.memberships;
     const rules = call.group.rules;
     const existingVotes = call.votes;
 
-    // Build a set of all required votes (ruleId|voterId|targetUserId)
-    const requiredVotes = new Set<string>();
-    const missingVoters: { name: string | null; ruleTitle: string }[] = [];
+    // Check if there are any approved rules
+    if (rules.length === 0) {
+      const errorResponse: FinalizeErrorResponse = {
+        error: "NO_RULES",
+        message: "No approved rules to vote on. All rules must be approved before finalizing.",
+      };
+      return NextResponse.json(errorResponse, { status: 400 });
+    }
 
-    for (const rule of rules) {
-      const ruleCreatorId = rule.creatorId;
-      const ruleCreator = rule.creator;
+    console.log(`[FINALIZE] Members: ${members.length}, Rules: ${rules.length}, Votes: ${existingVotes.length}`);
+
+    // Build voting requirements: each member votes on all OTHER members for ALL rules
+    // (You don't vote on yourself)
+    const requiredVotes = new Map<string, Set<string>>(); // voterId -> Set of required voteKeys
+    const missingVotersMap = new Map<string, { id: string; name: string | null; pendingRules: string[] }>();
+
+    for (const voter of members) {
+      const voterId = voter.userId;
+      const voterName = voter.user.name;
       
-      // Rule creator must vote on all members (including self)
-      for (const membership of members) {
-        const targetUserId = membership.userId;
-        const voteKey = `${rule.id}|${ruleCreatorId}|${targetUserId}`;
-        requiredVotes.add(voteKey);
+      for (const rule of rules) {
+        for (const target of members) {
+          // Skip self-votes
+          if (target.userId === voterId) continue;
+          
+          const voteKey = `${rule.id}|${voterId}|${target.userId}`;
+          if (!requiredVotes.has(voterId)) {
+            requiredVotes.set(voterId, new Set());
+          }
+          requiredVotes.get(voterId)!.add(voteKey);
+        }
       }
     }
 
@@ -91,38 +155,55 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       )
     );
 
-    // Find missing votes
-    for (const requiredVote of requiredVotes) {
-      if (!existingVoteSet.has(requiredVote)) {
-        const [ruleId, voterId] = requiredVote.split("|");
-        const rule = rules.find((r: { id: string }) => r.id === ruleId);
-        const voter = members.find((m: { userId: string }) => m.userId === voterId);
-        if (rule && voter) {
-          // Only add unique voter/rule combinations to missing list
-          const alreadyAdded = missingVoters.some(
-            (m) => m.name === voter.user.name && m.ruleTitle === rule.title
-          );
-          if (!alreadyAdded) {
-            missingVoters.push({
-              name: voter.user.name,
-              ruleTitle: rule.title || "Untitled Rule",
-            });
+    // Find missing votes per voter
+    let totalRequired = 0;
+    let totalVoted = 0;
+
+    for (const [voterId, requiredVoteKeys] of requiredVotes) {
+      const voter = members.find((m: { userId: string }) => m.userId === voterId);
+      const voterName = voter?.user.name || "Unknown";
+      
+      const missingRules: string[] = [];
+      
+      for (const voteKey of requiredVoteKeys) {
+        totalRequired++;
+        if (existingVoteSet.has(voteKey)) {
+          totalVoted++;
+        } else {
+          const [ruleId] = voteKey.split("|");
+          const rule = rules.find((r: { id: string }) => r.id === ruleId);
+          if (rule && !missingRules.includes(rule.title)) {
+            missingRules.push(rule.title);
           }
         }
       }
+      
+      if (missingRules.length > 0) {
+        missingVotersMap.set(voterId, {
+          id: voterId,
+          name: voterName,
+          pendingRules: missingRules,
+        });
+      }
     }
 
-    if (missingVoters.length > 0) {
-      // Group missing votes by voter
-      const votersMissing = [...new Set(missingVoters.map((m) => m.name))];
-      return NextResponse.json(
-        { 
-          error: "Not all members have finished voting",
-          message: `Waiting for: ${votersMissing.filter(Boolean).join(", ")}`,
-          missingVoters: votersMissing,
+    console.log(`[FINALIZE] Votes: ${totalVoted}/${totalRequired}`);
+
+    if (missingVotersMap.size > 0) {
+      const missingVoters = Array.from(missingVotersMap.values());
+      const voterNames = missingVoters.map(v => v.name || "Unknown").join(", ");
+      
+      const errorResponse: FinalizeErrorResponse = {
+        error: "MISSING_VOTES",
+        message: `Waiting for ${missingVoters.length} member(s) to complete voting: ${voterNames}`,
+        details: {
+          missingVoters,
+          votedCount: totalVoted,
+          totalRequired,
         },
-        { status: 400 }
-      );
+      };
+      console.log(`[FINALIZE] Missing votes:`, missingVoters);
+      return NextResponse.json(errorResponse, { status: 400 });
     }
 
     // Compute and create payment obligations
@@ -188,10 +269,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       obligations,
     });
   } catch (error) {
-    console.error("Error finalizing call:", error);
-    return NextResponse.json(
-      { error: "Failed to finalize call" },
-      { status: 500 }
-    );
+    console.error("[FINALIZE] Error finalizing call:", error);
+    const errorResponse: FinalizeErrorResponse = {
+      error: "INTERNAL_ERROR",
+      message: "An unexpected error occurred while finalizing the call",
+    };
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

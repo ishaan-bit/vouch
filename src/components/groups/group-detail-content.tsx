@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AddRuleDialog } from "./add-rule-dialog";
 import { AddProofDialog } from "./add-proof-dialog";
 import { StoriesRing } from "./stories-viewer";
+import { ActiveChallengeHub } from "./active-challenge-hub";
 import { toast } from "sonner";
 import { PactRing } from "@/components/ui/pact-ring";
 import { cn } from "@/lib/utils";
@@ -587,6 +588,22 @@ export function GroupDetailContent({ group, currentUserId, pendingJoinRequests =
         {group.status === "ACTIVE" && (
           <div className="mb-5">
             <StoriesRing groupId={group.id} className="px-1" />
+          </div>
+        )}
+
+        {/* Active Challenge Hub (Active pacts only) */}
+        {group.status === "ACTIVE" && group.startDate && group.endDate && (
+          <div className="mb-5">
+            <ActiveChallengeHub
+              groupId={group.id}
+              groupName={group.name}
+              startDate={group.startDate}
+              endDate={group.endDate}
+              durationDays={group.durationDays}
+              members={group.memberships}
+              currentUserId={currentUserId}
+              onUploadProof={() => setAddProofOpen(true)}
+            />
           </div>
         )}
 

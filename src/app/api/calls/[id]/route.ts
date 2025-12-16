@@ -78,7 +78,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   }
 }
 
-// PATCH /api/calls/[id] - Update call status (start/end) or meeting URL
+// PATCH /api/calls/[id] - Update call status or meeting URL
+// State machine: SCHEDULED -> RINGING -> LIVE -> ONGOING -> COMPLETED
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
     const session = await auth();
@@ -87,10 +88,11 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     }
 
     const { id } = await params;
-    const { status, meetingUrl } = await request.json();
+    const { status, meetingUrl, skipCall } = await request.json();
 
-    // Validate status if provided
-    if (status && !["ONGOING", "COMPLETED", "CANCELLED"].includes(status)) {
+    // Valid states
+    const validStatuses = ["SCHEDULED", "RINGING", "LIVE", "ONGOING", "COMPLETED", "CANCELLED"];
+    if (status && !validStatuses.includes(status)) {
       return NextResponse.json({ error: "Invalid status" }, { status: 400 });
     }
 
@@ -114,7 +116,11 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       include: {
         group: {
           include: {
-            memberships: true,
+            memberships: {
+              include: {
+                user: { select: { id: true, name: true } },
+              },
+            },
           },
         },
       },
@@ -133,22 +139,70 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     }
 
     const updateData: { 
-      status?: "SCHEDULED" | "ONGOING" | "COMPLETED" | "CANCELLED"; 
+      status?: "SCHEDULED" | "RINGING" | "LIVE" | "ONGOING" | "COMPLETED" | "CANCELLED"; 
       startedAt?: Date; 
       endedAt?: Date;
       meetingUrl?: string | null;
     } = {};
 
-    // Handle status update
+    // Handle status update with state machine validation
     if (status) {
-      updateData.status = status as "SCHEDULED" | "ONGOING" | "COMPLETED" | "CANCELLED";
+      const currentStatus = call.status;
       
-      if (status === "ONGOING" && !call.startedAt) {
-        updateData.startedAt = new Date();
+      // Validate state transitions
+      const validTransitions: Record<string, string[]> = {
+        SCHEDULED: ["RINGING", "ONGOING", "CANCELLED"], // Can skip to ONGOING for "Skip call and vote"
+        RINGING: ["LIVE", "ONGOING", "CANCELLED"],      // Can skip to ONGOING if call skipped
+        LIVE: ["ONGOING", "CANCELLED"],                 // Call ends -> move to voting
+        ONGOING: ["COMPLETED", "CANCELLED"],            // Voting ends
+        COMPLETED: [],                                  // Terminal state
+        CANCELLED: [],                                  // Terminal state
+      };
+      
+      if (!validTransitions[currentStatus]?.includes(status)) {
+        // Allow skipCall flag to force transition to ONGOING
+        if (skipCall && status === "ONGOING" && ["SCHEDULED", "RINGING", "LIVE"].includes(currentStatus)) {
+          console.log(`[CALL] Skip call flag used: ${currentStatus} -> ONGOING`);
+        } else {
+          return NextResponse.json({ 
+            error: `Invalid state transition from ${currentStatus} to ${status}`,
+            currentStatus,
+            validTransitions: validTransitions[currentStatus],
+          }, { status: 400 });
+        }
+      }
+      
+      updateData.status = status;
+      
+      // Set timestamps
+      if (status === "RINGING" || status === "LIVE") {
+        if (!call.startedAt) {
+          updateData.startedAt = new Date();
+        }
       }
 
       if (status === "COMPLETED" || status === "CANCELLED") {
         updateData.endedAt = new Date();
+      }
+
+      // Notify members on state changes
+      if (status === "RINGING") {
+        // Notify all members except initiator that call is starting
+        const otherMembers = call.group.memberships.filter(
+          (m: { userId: string }) => m.userId !== session.user.id
+        );
+        
+        if (otherMembers.length > 0) {
+          await prisma.notification.createMany({
+            data: otherMembers.map((m: { userId: string }) => ({
+              userId: m.userId,
+              type: "CALL_STARTED" as const,
+              title: "📞 Group call starting!",
+              message: `${session.user.name || "Someone"} started a call in the group. Join now!`,
+              data: { callId: id, groupId: call.groupId },
+            })),
+          });
+        }
       }
     }
 

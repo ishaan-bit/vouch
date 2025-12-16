@@ -6,7 +6,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Camera, FileText, Link as LinkIcon, Mic, Video, Flame, ThumbsUp, Skull, Trash2, Loader2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Camera, FileText, Link as LinkIcon, Mic, Video, Flame, ThumbsUp, Skull, Trash2, Loader2, MessageCircle, Send, ChevronDown, ChevronUp } from "lucide-react";
 import { ProofMediaViewer } from "./proof-media-viewer";
 import { toast } from "sonner";
 import {
@@ -40,6 +41,17 @@ interface ProofReaction {
   userId: string;
 }
 
+interface ProofComment {
+  id: string;
+  content: string;
+  createdAt: string;
+  author: {
+    id: string;
+    name: string | null;
+    avatarUrl: string | null;
+  };
+}
+
 interface Proof {
   id: string;
   uploaderId: string;
@@ -56,6 +68,7 @@ interface Proof {
   };
   ruleLinks: ProofRule[];
   reactions: ProofReaction[];
+  comments?: ProofComment[];
 }
 
 interface ProofFeedProps {
@@ -89,6 +102,8 @@ export function ProofFeed({ groupId, dayIndex, members, currentUserId }: ProofFe
     uploaderName?: string;
   } | null>(null);
   const [deleteProofId, setDeleteProofId] = useState<string | null>(null);
+  const [expandedComments, setExpandedComments] = useState<Set<string>>(new Set());
+  const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
 
   const { data: proofs, isLoading } = useQuery<Proof[]>({
     queryKey: ["proofs", groupId, dayIndex],
@@ -120,6 +135,93 @@ export function ProofFeed({ groupId, dayIndex, members, currentUserId }: ProofFe
       toast.error(error.message);
     },
   });
+
+  // Toggle reaction mutation
+  const toggleReactionMutation = useMutation({
+    mutationFn: async ({ proofId, emoji }: { proofId: string; emoji: string }) => {
+      const res = await fetch(`/api/proofs/${proofId}/reactions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emoji }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to toggle reaction");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["proofs", groupId, dayIndex] });
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+
+  // Add comment mutation
+  const addCommentMutation = useMutation({
+    mutationFn: async ({ proofId, content }: { proofId: string; content: string }) => {
+      const res = await fetch(`/api/proofs/${proofId}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to add comment");
+      }
+      return res.json();
+    },
+    onSuccess: (_, variables) => {
+      // Clear input and expand comments
+      setCommentInputs((prev) => ({ ...prev, [variables.proofId]: "" }));
+      setExpandedComments((prev) => new Set(prev).add(variables.proofId));
+      queryClient.invalidateQueries({ queryKey: ["proofs", groupId, dayIndex] });
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+
+  // Delete comment mutation
+  const deleteCommentMutation = useMutation({
+    mutationFn: async ({ proofId, commentId }: { proofId: string; commentId: string }) => {
+      const res = await fetch(`/api/proofs/${proofId}/comments/${commentId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to delete comment");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["proofs", groupId, dayIndex] });
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+
+  // Toggle comment expansion
+  const toggleComments = (proofId: string) => {
+    setExpandedComments((prev) => {
+      const next = new Set(prev);
+      if (next.has(proofId)) {
+        next.delete(proofId);
+      } else {
+        next.add(proofId);
+      }
+      return next;
+    });
+  };
+
+  // Handle comment submission
+  const handleSubmitComment = (proofId: string) => {
+    const content = commentInputs[proofId]?.trim();
+    if (!content) return;
+    addCommentMutation.mutate({ proofId, content });
+  };
 
   // Group proofs by member
   const proofsByMember = members.map((member) => ({
@@ -275,7 +377,9 @@ export function ProofFeed({ groupId, dayIndex, members, currentUserId }: ProofFe
                               key={emoji}
                               variant={hasReacted ? "secondary" : "ghost"}
                               size="sm"
-                              className="h-8 gap-1"
+                              className={`h-8 gap-1 ${hasReacted ? "bg-violet-500/20 border-violet-500/30" : ""}`}
+                              onClick={() => toggleReactionMutation.mutate({ proofId: proof.id, emoji })}
+                              disabled={toggleReactionMutation.isPending}
                             >
                               <span>{emoji}</span>
                               {count > 0 && (
@@ -284,6 +388,24 @@ export function ProofFeed({ groupId, dayIndex, members, currentUserId }: ProofFe
                             </Button>
                           );
                         })}
+                        
+                        {/* Comment button */}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 gap-1"
+                          onClick={() => toggleComments(proof.id)}
+                        >
+                          <MessageCircle className="h-4 w-4" />
+                          {(proof.comments?.length || 0) > 0 && (
+                            <span className="text-xs">{proof.comments?.length}</span>
+                          )}
+                          {expandedComments.has(proof.id) ? (
+                            <ChevronUp className="h-3 w-3" />
+                          ) : (
+                            <ChevronDown className="h-3 w-3" />
+                          )}
+                        </Button>
                         
                         {/* Delete button (owner only) */}
                         {proof.uploaderId === currentUserId && (
@@ -297,6 +419,75 @@ export function ProofFeed({ groupId, dayIndex, members, currentUserId }: ProofFe
                           </Button>
                         )}
                       </div>
+                      
+                      {/* Comments section */}
+                      {expandedComments.has(proof.id) && (
+                        <div className="mt-3 pt-3 border-t space-y-3">
+                          {/* Existing comments */}
+                          {proof.comments && proof.comments.length > 0 && (
+                            <div className="space-y-2">
+                              {proof.comments.map((comment) => (
+                                <div key={comment.id} className="flex gap-2 group">
+                                  <Avatar className="h-6 w-6 flex-shrink-0">
+                                    <AvatarImage src={comment.author.avatarUrl || undefined} />
+                                    <AvatarFallback className="text-xs">
+                                      {comment.author.name?.[0] || "?"}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-baseline gap-2">
+                                      <span className="text-xs font-medium">{comment.author.name}</span>
+                                      <span className="text-xs text-muted-foreground">
+                                        {new Date(comment.createdAt).toLocaleDateString()}
+                                      </span>
+                                    </div>
+                                    <p className="text-sm break-words">{comment.content}</p>
+                                  </div>
+                                  {comment.author.id === currentUserId && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity text-red-400 hover:text-red-500"
+                                      onClick={() => deleteCommentMutation.mutate({ proofId: proof.id, commentId: comment.id })}
+                                      disabled={deleteCommentMutation.isPending}
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </Button>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          
+                          {/* Add comment input */}
+                          <div className="flex gap-2">
+                            <Input
+                              value={commentInputs[proof.id] || ""}
+                              onChange={(e) => setCommentInputs((prev) => ({ ...prev, [proof.id]: e.target.value }))}
+                              placeholder="Add a comment..."
+                              className="flex-1 h-8 text-sm"
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" && !e.shiftKey) {
+                                  e.preventDefault();
+                                  handleSubmitComment(proof.id);
+                                }
+                              }}
+                            />
+                            <Button
+                              size="sm"
+                              className="h-8"
+                              onClick={() => handleSubmitComment(proof.id)}
+                              disabled={!commentInputs[proof.id]?.trim() || addCommentMutation.isPending}
+                            >
+                              {addCommentMutation.isPending ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Send className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
