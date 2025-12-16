@@ -20,22 +20,33 @@ export async function GET() {
       },
     });
 
-    // Count unread messages (messages in chats where user is a participant)
-    // First get all groups user is a member of
+    // Count unread messages from multiple sources
+    
+    // 1. Get all groups user is a member of
     const memberships = await prisma.groupMembership.findMany({
       where: { userId },
       select: { groupId: true },
     });
-
     const groupIds = memberships.map((m) => m.groupId);
 
-    // Count messages in those groups that are:
-    // 1. Not from the current user
-    // 2. Created after the user's last read (we'd need a lastRead field for this)
-    // For now, we'll count messages from last 24 hours not from user as a simple proxy
+    // 2. Get all DM threads user is part of
+    const dmThreads = await prisma.dmThread.findMany({
+      where: {
+        OR: [
+          { userAId: userId },
+          { userBId: userId },
+        ],
+      },
+      select: { id: true },
+    });
+    const dmThreadIds = dmThreads.map((t) => t.id);
+
+    // For now, count messages from last 24 hours not from user as a proxy
+    // A proper implementation would track lastReadAt per thread/group
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
     
-    const messagesCount = await prisma.chatMessage.count({
+    // Count group messages
+    const groupMessagesCount = await prisma.chatMessage.count({
       where: {
         groupId: { in: groupIds },
         senderId: { not: userId },
@@ -43,9 +54,20 @@ export async function GET() {
       },
     });
 
+    // Count DM messages
+    const dmMessagesCount = await prisma.chatMessage.count({
+      where: {
+        dmThreadId: { in: dmThreadIds },
+        senderId: { not: userId },
+        createdAt: { gt: oneDayAgo },
+      },
+    });
+
+    const totalMessages = groupMessagesCount + dmMessagesCount;
+
     return NextResponse.json({
       activity: activityCount,
-      messages: Math.min(messagesCount, 99), // Cap at 99 for display
+      messages: Math.min(totalMessages, 99), // Cap at 99 for display
     });
   } catch (error) {
     console.error("Error fetching unread counts:", error);
