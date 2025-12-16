@@ -62,6 +62,15 @@ interface Proof {
   ruleLinks: { rule: { description: string } }[];
 }
 
+interface UserGroup {
+  id: string;
+  name: string;
+  description: string | null;
+  status: string;
+  durationDays: number;
+  memberCount: number;
+}
+
 interface UserProfile {
   id: string;
   name: string | null;
@@ -76,6 +85,7 @@ interface UserProfile {
     successRate: number;
   } | null;
   proofs: Proof[];
+  groups: UserGroup[];
   friendshipStatus: "none" | "pending-sent" | "pending-received" | "friends";
   friendshipId?: string;
   mutualFriends: number;
@@ -505,16 +515,56 @@ export default function UserProfilePage({ params }: UserProfilePageProps) {
           </TabsContent>
 
           <TabsContent value="groups" className="mt-4">
-            <Card>
-              <CardContent className="p-8 text-center">
-                <Users className="h-12 w-12 text-muted-foreground/50 mx-auto mb-3" />
-                <p className="text-muted-foreground">
-                  {isOwnProfile || profile.friendshipStatus === "friends"
-                    ? "No groups to show"
-                    : "Become friends to see groups"}
-                </p>
-              </CardContent>
-            </Card>
+            {(isOwnProfile || profile.friendshipStatus === "friends") && profile.groups && profile.groups.length > 0 ? (
+              <div className="space-y-3">
+                {profile.groups.map((group) => (
+                  <Link key={group.id} href={`/groups/${group.id}`}>
+                    <Card className="overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all">
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-semibold truncate">{group.name}</h3>
+                            {group.description && (
+                              <p className="text-sm text-muted-foreground line-clamp-1 mt-1">
+                                {group.description}
+                              </p>
+                            )}
+                            <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+                              <span className="flex items-center gap-1">
+                                <Users className="h-3 w-3" />
+                                {group.memberCount}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                {group.durationDays} days
+                              </span>
+                              <Badge variant={
+                                group.status === "ACTIVE" ? "default" :
+                                group.status === "COMPLETED" ? "secondary" :
+                                "outline"
+                              } className="text-xs">
+                                {group.status}
+                              </Badge>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <Card>
+                <CardContent className="p-8 text-center">
+                  <Users className="h-12 w-12 text-muted-foreground/50 mx-auto mb-3" />
+                  <p className="text-muted-foreground">
+                    {!isOwnProfile && profile.friendshipStatus !== "friends"
+                      ? "Become friends to see groups"
+                      : "No groups to show"}
+                  </p>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           <TabsContent value="achievements" className="mt-4">

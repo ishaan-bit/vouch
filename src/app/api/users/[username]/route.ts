@@ -64,7 +64,27 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         },
         // Fetch group memberships and created rules for stats
         groupMemberships: {
-          select: { id: true },
+          select: {
+            id: true,
+            group: {
+              select: {
+                id: true,
+                name: true,
+                description: true,
+                status: true,
+                createdAt: true,
+                durationDays: true,
+                _count: {
+                  select: {
+                    memberships: true,
+                  },
+                },
+              },
+            },
+          },
+          orderBy: {
+            joinedAt: "desc",
+          },
         },
         createdRules: {
           select: { id: true },
@@ -115,7 +135,27 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           },
           // Fetch group memberships and created rules for stats
           groupMemberships: {
-            select: { id: true },
+            select: {
+              id: true,
+              group: {
+                select: {
+                  id: true,
+                  name: true,
+                  description: true,
+                  status: true,
+                  createdAt: true,
+                  durationDays: true,
+                  _count: {
+                    select: {
+                      memberships: true,
+                    },
+                  },
+                },
+              },
+            },
+            orderBy: {
+              joinedAt: "desc",
+            },
           },
           createdRules: {
             select: { id: true },
@@ -128,16 +168,29 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
+    // Cast to any to handle TypeScript's inability to infer union types after conditional assignment
+    const userData = user as any;
+
     // Ensure proofs array exists (defensive)
-    const proofs = user.proofs || [];
+    const proofs = userData.proofs || [];
+    
+    // Extract groups from memberships
+    const groups = (userData.groupMemberships || []).map((membership: any) => ({
+      id: membership.group.id,
+      name: membership.group.name,
+      description: membership.group.description,
+      status: membership.group.status,
+      durationDays: membership.group.durationDays,
+      memberCount: membership.group._count?.memberships || 0,
+    }));
     
     // Calculate profile stats for frontend
-    const totalGroups = user.groupMemberships?.length || 0;
-    const totalRules = user.createdRules?.length || 0;
+    const totalGroups = userData.groupMemberships?.length || 0;
+    const totalRules = userData.createdRules?.length || 0;
     const totalProofs = proofs.length;
     
     // Calculate success rate from profileStats if available
-    const stats = user.profileStats;
+    const stats = userData.profileStats;
     const groupsStarted = stats?.groupsStarted || 0;
     const groupsCompleted = stats?.groupsCompleted || 0;
     const successRate = groupsStarted > 0 
@@ -212,6 +265,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         createdAt: user.createdAt,
         profileStats: computedProfileStats,
         proofs,
+        groups,
         friendshipStatus,
         friendshipId,
         mutualFriends,
@@ -227,6 +281,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       createdAt: user.createdAt,
       profileStats: computedProfileStats,
       proofs,
+      groups,
       friendshipStatus: "none",
       mutualFriends: 0,
     });
