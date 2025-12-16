@@ -16,6 +16,7 @@ import {
   Pause,
   Square,
   FileAudio,
+  Trash2,
 } from "lucide-react";
 import { format, isToday, isYesterday } from "date-fns";
 import { useSocket } from "@/components/providers/socket-provider";
@@ -199,6 +200,38 @@ export function ChatBox({ type, id, recipientId }: ChatBoxProps) {
     },
   });
 
+  // Delete message mutation
+  const deleteMutation = useMutation({
+    mutationFn: async (messageId: string) => {
+      const res = await fetch(`/api/messages/${messageId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to delete message");
+      }
+      return res.json();
+    },
+    onSuccess: (_, messageId) => {
+      queryClient.setQueryData(
+        ["messages", type, id],
+        (old: { messages: Message[]; nextCursor: string | null } | undefined) => ({
+          messages: (old?.messages || []).filter((msg) => msg.id !== messageId),
+          nextCursor: old?.nextCursor || null,
+        })
+      );
+      toast.success("Message deleted");
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+
+  const handleDeleteMessage = (messageId: string) => {
+    if (deleteMutation.isPending) return;
+    deleteMutation.mutate(messageId);
+  };
+
   const handleSend = async () => {
     if ((!message.trim() && !selectedFile && !audioBlob) || sendMutation.isPending || isUploading) return;
 
@@ -364,7 +397,7 @@ export function ChatBox({ type, id, recipientId }: ChatBoxProps) {
             const showAvatar = index === 0 || messages[index - 1].sender.id !== msg.sender.id;
 
             return (
-              <div key={msg.id} className={cn("flex gap-2", isOwn && "flex-row-reverse")}>
+              <div key={msg.id} className={cn("flex gap-2 group", isOwn && "flex-row-reverse")}>
                 {showAvatar ? (
                   <Avatar className="h-8 w-8">
                     <AvatarImage src={msg.sender.avatarUrl || undefined} />
@@ -374,6 +407,22 @@ export function ChatBox({ type, id, recipientId }: ChatBoxProps) {
                   </Avatar>
                 ) : (
                   <div className="w-8" />
+                )}
+
+                {/* Delete button for own messages - shows on hover */}
+                {isOwn && (
+                  <button
+                    onClick={() => handleDeleteMessage(msg.id)}
+                    disabled={deleteMutation.isPending}
+                    className={cn(
+                      "self-center p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity",
+                      "bg-[var(--dusk-3)] hover:bg-red-500/20 text-white/40 hover:text-red-400",
+                      deleteMutation.isPending && "cursor-not-allowed"
+                    )}
+                    title="Delete message"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
                 )}
 
                 <div
