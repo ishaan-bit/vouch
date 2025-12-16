@@ -124,7 +124,9 @@ export default function LandingPage() {
               textShadow: "0 0 20px rgba(168, 85, 247, 0.3)",
             }}
           >
-            Strength through Unity · Unity through Faith
+            Strength through Unity
+            <br />
+            Unity through Faith
           </p>
         </div>
 
