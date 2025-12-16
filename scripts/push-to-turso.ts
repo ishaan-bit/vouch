@@ -357,6 +357,7 @@ const statements: string[] = [
     "startedAt" DATETIME,
     "endedAt" DATETIME,
     "status" TEXT NOT NULL DEFAULT 'SCHEDULED',
+    "meetingUrl" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "CallSession_groupId_fkey" FOREIGN KEY ("groupId") REFERENCES "Group" ("id") ON DELETE CASCADE ON UPDATE CASCADE
   )`,
