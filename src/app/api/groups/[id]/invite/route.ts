@@ -108,18 +108,18 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       await tx.notification.createMany({
         data: validUserIds.map((userId) => ({
           userId,
-          type: "PACT_MEMBER_ADDED" as const,
+          type: "PACT_MEMBER_ADDED",
           title: "You've been added to a pact! 🎯",
           message: `${session.user.name || "Someone"} added you to "${group.name}". Tap to add your rule and join.`,
-          data: { 
+          data: JSON.parse(JSON.stringify({ 
             groupId, 
             groupSlug: group.slug,
             creatorId: session.user.id, 
-            creatorName: session.user.name,
+            creatorName: session.user.name || null,
             groupName: group.name,
             action: "ADD_RULE",
             deepLink: `/groups/${groupId}`,
-          },
+          })),
         })),
       });
       

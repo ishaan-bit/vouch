@@ -12,7 +12,7 @@ interface User {
 
 interface Approval {
   id: string;
-  userId: string;
+  approverId: string;
   ruleId: string;
 }
 
