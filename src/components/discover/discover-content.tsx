@@ -2,13 +2,23 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Search, Users, Sparkles, Trophy, Plus, LayoutGrid, Layers, Clock, Coins } from "lucide-react";
+import {
+  BottomSheet,
+  BottomSheetContent,
+  BottomSheetDescription,
+  BottomSheetHeader,
+  BottomSheetTitle,
+} from "@/components/ui/bottom-sheet";
+import { Search, Users, Sparkles, Trophy, Plus, LayoutGrid, Layers, Clock, Coins, Ticket, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import { SwipeDeck, DiscoverPact } from "./swipe-deck";
 
 // Types
@@ -170,9 +180,31 @@ interface DiscoverContentProps {
 
 // Main Discover Content Component
 export function DiscoverContent({ userId }: DiscoverContentProps) {
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("pacts");
   const [viewMode, setViewMode] = useState<"swipe" | "grid">("swipe");
+  const [joinCodeOpen, setJoinCodeOpen] = useState(false);
+  const [inviteCode, setInviteCode] = useState("");
+  const [isJoining, setIsJoining] = useState(false);
+
+  // Handle joining with invite code
+  const handleJoinWithCode = async () => {
+    const code = inviteCode.trim();
+    if (!code) {
+      toast.error("Please enter an invite code");
+      return;
+    }
+    
+    setIsJoining(true);
+    try {
+      // Navigate to the invite page which handles the join flow
+      router.push(`/i/${code}`);
+    } catch {
+      toast.error("Invalid invite code");
+      setIsJoining(false);
+    }
+  };
 
   // Fetch discoverable pacts
   const { data: pacts = [], isLoading: pactsLoading } = useQuery<DiscoverPact[]>({
@@ -226,9 +258,25 @@ export function DiscoverContent({ userId }: DiscoverContentProps) {
               Discover
             </span>
           </h1>
-          <p className="text-center text-white/40 text-sm mb-6">
+          <p className="text-center text-white/40 text-sm mb-4">
             Find your next accountability ritual
           </p>
+          
+          {/* Join with Code Button */}
+          <div className="flex justify-center mb-4">
+            <button
+              onClick={() => setJoinCodeOpen(true)}
+              className={cn(
+                "flex items-center gap-2 px-4 py-2.5 rounded-full font-medium text-sm",
+                "bg-[var(--dusk-3)] border border-white/10",
+                "text-white/70 hover:text-white hover:border-white/20",
+                "active:scale-[0.97] transition-all duration-200"
+              )}
+            >
+              <Ticket className="h-4 w-4" />
+              Join with Invite Code
+            </button>
+          </div>
           
           <div className="relative">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/30" />
@@ -351,6 +399,48 @@ export function DiscoverContent({ userId }: DiscoverContentProps) {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Join with Code Dialog */}
+      <BottomSheet open={joinCodeOpen} onOpenChange={setJoinCodeOpen}>
+        <BottomSheetContent>
+          <BottomSheetHeader>
+            <BottomSheetTitle>Join a Pact</BottomSheetTitle>
+            <BottomSheetDescription>
+              Enter the invite code shared with you
+            </BottomSheetDescription>
+          </BottomSheetHeader>
+          <div className="p-4 space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="inviteCode">Invite Code</Label>
+              <Input
+                id="inviteCode"
+                value={inviteCode}
+                onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+                placeholder="e.g. ABCD1234"
+                className="text-center text-lg font-mono tracking-widest uppercase"
+                maxLength={20}
+              />
+            </div>
+            <Button
+              onClick={handleJoinWithCode}
+              disabled={isJoining || !inviteCode.trim()}
+              className="w-full bg-gradient-to-r from-[var(--accent-violet)] to-[var(--accent-magenta)] text-white"
+            >
+              {isJoining ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Joining...
+                </>
+              ) : (
+                <>
+                  <Users className="mr-2 h-4 w-4" />
+                  Join Pact
+                </>
+              )}
+            </Button>
+          </div>
+        </BottomSheetContent>
+      </BottomSheet>
     </div>
   );
 }
