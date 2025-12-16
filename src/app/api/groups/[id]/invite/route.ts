@@ -93,22 +93,25 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // Add members and create notifications in a transaction
     console.log(`[INVITE] Adding ${validUserIds.length} members to group ${groupId}`);
+    console.log(`[INVITE] User IDs to invite:`, validUserIds);
+    console.log(`[INVITE] Inviter: ${session.user.name} (${session.user.id})`);
     
-    await prisma.$transaction(async (tx) => {
-      // Create memberships for new users
-      await tx.groupMembership.createMany({
-        data: validUserIds.map((userId) => ({
-          groupId,
-          userId,
-          role: "MEMBER",
-        })),
-      });
+    try {
+      await prisma.$transaction(async (tx) => {
+        // Create memberships for new users
+        const memberships = await tx.groupMembership.createMany({
+          data: validUserIds.map((userId) => ({
+            groupId,
+            userId,
+            role: "MEMBER",
+          })),
+        });
+        console.log(`[INVITE] Created ${memberships.count} memberships`);
 
-      // Create notifications for invited users with CTA deep-link data
-      await tx.notification.createMany({
-        data: validUserIds.map((userId) => ({
+        // Create notifications for invited users with CTA deep-link data
+        const notificationData = validUserIds.map((userId) => ({
           userId,
-          type: "PACT_MEMBER_ADDED",
+          type: "PACT_MEMBER_ADDED" as const,
           title: "You've been added to a pact! 🎯",
           message: `${session.user.name || "Someone"} added you to "${group.name}". Tap to add your rule and join.`,
           data: JSON.parse(JSON.stringify({ 
@@ -120,11 +123,18 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             action: "ADD_RULE",
             deepLink: `/groups/${groupId}`,
           })),
-        })),
+        }));
+        console.log(`[INVITE] Notification data prepared:`, JSON.stringify(notificationData, null, 2));
+        
+        const notifications = await tx.notification.createMany({
+          data: notificationData,
+        });
+        console.log(`[INVITE] Created ${notifications.count} PACT_MEMBER_ADDED notifications`);
       });
-      
-      console.log(`[INVITE] Created PACT_MEMBER_ADDED notifications for ${validUserIds.length} users`);
-    });
+    } catch (txError) {
+      console.error(`[INVITE] Transaction failed:`, txError);
+      throw txError;
+    }
 
     return NextResponse.json(
       { message: `${validUserIds.length} member(s) invited successfully` },

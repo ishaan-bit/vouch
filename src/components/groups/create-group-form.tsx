@@ -75,11 +75,21 @@ export function CreateGroupForm({ userId }: CreateGroupFormProps) {
     onSuccess: async (group) => {
       // Invite selected members
       if (selectedMembers.length > 0) {
-        await fetch(`/api/groups/${group.id}/invite`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userIds: selectedMembers.map((m) => m.id) }),
-        });
+        try {
+          const inviteRes = await fetch(`/api/groups/${group.id}/invite`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ userIds: selectedMembers.map((m) => m.id) }),
+          });
+          if (!inviteRes.ok) {
+            const errData = await inviteRes.json();
+            console.error("[CREATE_GROUP] Failed to invite members:", errData);
+          } else {
+            console.log("[CREATE_GROUP] Successfully invited", selectedMembers.length, "members");
+          }
+        } catch (err) {
+          console.error("[CREATE_GROUP] Error inviting members:", err);
+        }
       }
       // Invalidate queries to refresh UI
       queryClient.invalidateQueries({ queryKey: ["my-groups"] });
