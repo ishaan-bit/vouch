@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { usePathname, useRouter } from "next/navigation";
-import { MessageCircle, Bell, Users, CheckCircle, AlertCircle } from "lucide-react";
+import { MessageCircle, Bell, Users, UserMinus, CheckCircle, AlertCircle } from "lucide-react";
 
 interface Notification {
   id: string;
@@ -108,6 +108,8 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
           return <Users className="h-4 w-4 text-green-500" />;
         case "FRIEND_REQUEST":
           return <Users className="h-4 w-4 text-purple-500" />;
+        case "MEMBER_LEFT":
+          return <UserMinus className="h-4 w-4 text-orange-500" />;
         case "PROOF_SUBMITTED":
           return <CheckCircle className="h-4 w-4 text-green-500" />;
         case "PROOF_DEADLINE":
@@ -127,6 +129,10 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
           return notification.data?.groupId 
             ? () => router.push(`/groups/${notification.data?.groupId}`)
             : undefined;
+        case "MEMBER_LEFT":
+          return notification.data?.groupId 
+            ? () => router.push(`/groups/${notification.data?.groupId}`)
+            : () => router.push("/activity");
         case "FRIEND_REQUEST":
           return () => router.push("/activity");
         default:

@@ -19,6 +19,11 @@ export async function GET() {
             id: true,
             name: true,
             status: true,
+            _count: {
+              select: {
+                memberships: true,
+              },
+            },
             memberships: {
               include: {
                 user: {
@@ -61,6 +66,7 @@ export async function GET() {
         status: string;
         chatMessages: ChatMessage[];
         memberships: MembershipUser[];
+        _count: { memberships: number };
       };
     }
 
@@ -68,6 +74,7 @@ export async function GET() {
       id: m.group.id,
       name: m.group.name,
       status: m.group.status,
+      memberCount: m.group._count.memberships,
       lastMessage: m.group.chatMessages[0]
         ? {
             content: m.group.chatMessages[0].content,

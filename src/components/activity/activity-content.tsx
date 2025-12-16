@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Bell,
   UserPlus,
+  UserMinus,
   Users,
   Camera,
   Video,
@@ -41,11 +42,15 @@ const notificationIcons: Record<string, React.ElementType> = {
   FRIEND_REQUEST: UserPlus,
   FRIEND_ACCEPTED: UserPlus,
   GROUP_INVITE: Users,
+  PACT_MEMBER_ADDED: Users,
+  JOIN_REQUEST: Users,
+  MEMBER_LEFT: UserMinus,
   PROOF_REACTION: Camera,
   CALL_REMINDER: Video,
   PAYMENT_RECEIVED: DollarSign,
   PAYMENT_DUE: DollarSign,
   GROUP_STARTED: Users,
+  NEW_MESSAGE: Bell,
   OTHER: Bell,
 };
 
@@ -219,6 +224,18 @@ export function ActivityContent({ userId }: ActivityContentProps) {
                 onClick={(e) => e.stopPropagation()}
               >
                 Add your rule
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            )}
+
+            {/* Pact member added - CTA to add rule and join */}
+            {notification.type === "PACT_MEMBER_ADDED" && notification.data && (notification.data.groupId as string) && (
+              <Link 
+                href={`/groups/${notification.data.groupId}`}
+                className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-gradient-to-r from-[var(--accent-gold)]/20 to-[var(--accent-gold)]/10 text-[var(--accent-gold)] border border-[var(--accent-gold)]/30 hover:from-[var(--accent-gold)]/30 hover:to-[var(--accent-gold)]/20 transition-all"
+                onClick={(e) => e.stopPropagation()}
+              >
+                Join by adding your rule
                 <ArrowRight className="h-4 w-4" />
               </Link>
             )}

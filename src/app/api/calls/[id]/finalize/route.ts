@@ -143,6 +143,34 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       data: { status: "COMPLETED" },
     });
 
+    // Update profile stats for all members - increment groupsCompleted and update streaks
+    await Promise.all(
+      members.map(async (m: { userId: string }) => {
+        // Get current stats to calculate streak
+        const stats = await prisma.profileStats.findUnique({
+          where: { userId: m.userId },
+        });
+        
+        const newGroupsCompleted = (stats?.groupsCompleted || 0) + 1;
+        // For simplicity, we use groupsCompleted as a proxy for current streak
+        // A more sophisticated approach would track consecutive completions by date
+        const newLongestStreak = Math.max(stats?.longestStreak || 0, newGroupsCompleted);
+        
+        await prisma.profileStats.upsert({
+          where: { userId: m.userId },
+          create: { 
+            userId: m.userId, 
+            groupsCompleted: 1,
+            longestStreak: 1,
+          },
+          update: { 
+            groupsCompleted: { increment: 1 },
+            longestStreak: newLongestStreak,
+          },
+        });
+      })
+    );
+
     // Notify all members (reuse members variable from above)
     await prisma.notification.createMany({
       data: members.map((m: { userId: string }) => ({

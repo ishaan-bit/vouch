@@ -97,6 +97,13 @@ export async function POST(request: Request, { params }: RouteParams) {
       },
     });
 
+    // Increment rulesCreatedCount for the user
+    await prisma.profileStats.upsert({
+      where: { userId: session.user.id },
+      create: { userId: session.user.id, rulesCreatedCount: 1 },
+      update: { rulesCreatedCount: { increment: 1 } },
+    });
+
     return NextResponse.json(rule, { status: 201 });
   } catch (error) {
     console.error("Error creating rule:", error);

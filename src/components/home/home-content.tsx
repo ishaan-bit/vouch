@@ -1,9 +1,22 @@
 "use client";
 
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  BottomSheet,
+  BottomSheetContent,
+  BottomSheetDescription,
+  BottomSheetHeader,
+  BottomSheetTitle,
+  BottomSheetFooter,
+} from "@/components/ui/bottom-sheet";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { 
   Plus, 
@@ -17,6 +30,8 @@ import {
   Zap,
   Clock,
   Target,
+  Ticket,
+  Loader2,
 } from "lucide-react";
 import { formatDistanceToNow, differenceInDays, format, differenceInHours } from "date-fns";
 
@@ -61,6 +76,11 @@ interface UpcomingCall {
 }
 
 export function HomeContent({ userId }: HomeContentProps) {
+  const router = useRouter();
+  const [joinCodeOpen, setJoinCodeOpen] = useState(false);
+  const [inviteCode, setInviteCode] = useState("");
+  const [isJoining, setIsJoining] = useState(false);
+
   const { data: groups, isLoading: groupsLoading } = useQuery<Group[]>({
     queryKey: ["my-groups"],
     queryFn: async () => {
@@ -82,6 +102,23 @@ export function HomeContent({ userId }: HomeContentProps) {
   const activeGroups = groups?.filter((g) => g.status === "ACTIVE") || [];
   const planningGroups = groups?.filter((g) => g.status === "PLANNING") || [];
   const completedCount = groups?.filter((g) => g.status === "COMPLETED").length || 0;
+
+  const handleJoinWithCode = async () => {
+    const code = inviteCode.trim();
+    if (!code) {
+      toast.error("Please enter an invite code");
+      return;
+    }
+    
+    setIsJoining(true);
+    try {
+      // Navigate to the invite page which handles the join flow
+      router.push(`/i/${code}`);
+    } catch {
+      toast.error("Invalid invite code");
+      setIsJoining(false);
+    }
+  };
 
   const getCurrentDay = (startDate: string | null, durationDays: number) => {
     if (!startDate) return 0;
@@ -114,18 +151,32 @@ export function HomeContent({ userId }: HomeContentProps) {
               {format(new Date(), "EEEE, MMMM d")}
             </p>
           </div>
-          <Link href="/groups/create">
-            <button className={cn(
-              "flex items-center gap-2 px-4 py-2.5 rounded-full font-medium text-sm",
-              "bg-gradient-to-r from-[var(--accent-gold)] to-orange-500",
-              "text-white shadow-lg shadow-[var(--accent-gold)]/20",
-              "hover:shadow-xl hover:shadow-[var(--accent-gold)]/30",
-              "active:scale-[0.97] transition-all duration-200"
-            )}>
-              <Plus className="h-4 w-4" />
-              New Pact
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setJoinCodeOpen(true)}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-2.5 rounded-full font-medium text-sm",
+                "bg-[var(--dusk-3)] border border-white/10",
+                "text-white/70 hover:text-white hover:border-white/20",
+                "active:scale-[0.97] transition-all duration-200"
+              )}
+            >
+              <Users className="h-4 w-4" />
+              Join
             </button>
-          </Link>
+            <Link href="/groups/create">
+              <button className={cn(
+                "flex items-center gap-2 px-4 py-2.5 rounded-full font-medium text-sm",
+                "bg-gradient-to-r from-[var(--accent-gold)] to-orange-500",
+                "text-white shadow-lg shadow-[var(--accent-gold)]/20",
+                "hover:shadow-xl hover:shadow-[var(--accent-gold)]/30",
+                "active:scale-[0.97] transition-all duration-200"
+              )}>
+                <Plus className="h-4 w-4" />
+                New Pact
+              </button>
+            </Link>
+          </div>
         </div>
 
         {/* Active Groups */}
@@ -423,6 +474,48 @@ export function HomeContent({ userId }: HomeContentProps) {
         {/* Bottom padding for nav */}
         <div className="h-20" />
       </div>
+
+      {/* Join with Code Dialog */}
+      <BottomSheet open={joinCodeOpen} onOpenChange={setJoinCodeOpen}>
+        <BottomSheetContent>
+          <BottomSheetHeader>
+            <BottomSheetTitle>Join a Pact</BottomSheetTitle>
+            <BottomSheetDescription>
+              Enter the invite code shared with you
+            </BottomSheetDescription>
+          </BottomSheetHeader>
+          <div className="p-4 space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="inviteCode">Invite Code</Label>
+              <Input
+                id="inviteCode"
+                value={inviteCode}
+                onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+                placeholder="e.g. ABCD1234"
+                className="text-center text-lg font-mono tracking-widest uppercase"
+                maxLength={20}
+              />
+            </div>
+            <Button
+              onClick={handleJoinWithCode}
+              disabled={isJoining || !inviteCode.trim()}
+              className="w-full bg-gradient-to-r from-[var(--accent-violet)] to-[var(--accent-magenta)] text-white"
+            >
+              {isJoining ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Joining...
+                </>
+              ) : (
+                <>
+                  <Users className="mr-2 h-4 w-4" />
+                  Join Pact
+                </>
+              )}
+            </Button>
+          </div>
+        </BottomSheetContent>
+      </BottomSheet>
     </div>
   );
 }

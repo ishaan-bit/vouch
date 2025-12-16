@@ -10,6 +10,7 @@ const ALLOWED_TYPES = [
   "image/gif",
   "video/mp4",
   "video/webm",
+  "video/quicktime", // MOV files
   "audio/webm", // For voice recordings
   "audio/mp4",
   "audio/mpeg",

@@ -92,8 +92,11 @@ export async function POST(request: Request, { params }: RouteParams) {
         },
       });
 
+      console.log(`[APPROVE] Rule ${ruleId}: ${approvalCount}/${membersExceptCreator.length} approvals`);
+
       // Auto-approve rule if all members have approved
       if (approvalCount >= membersExceptCreator.length) {
+        console.log(`[APPROVE] Auto-approving rule ${ruleId}`);
         await prisma.rule.update({
           where: { id: ruleId },
           data: { approved: true },
@@ -101,9 +104,21 @@ export async function POST(request: Request, { params }: RouteParams) {
       }
     }
 
+    // Fetch and return the updated rule with approvals
+    const updatedRule = await prisma.rule.findUnique({
+      where: { id: ruleId },
+      include: {
+        approvals: true,
+        creator: {
+          select: { id: true, name: true, avatarUrl: true },
+        },
+      },
+    });
+
     return NextResponse.json({ 
       message: "Rule approved",
-      approval 
+      approval,
+      rule: updatedRule 
     });
   } catch (error) {
     console.error("Error approving rule:", error);

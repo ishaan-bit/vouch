@@ -47,6 +47,7 @@ interface GroupChat {
     createdAt: string;
   } | null;
   unreadCount: number;
+  memberCount: number;
   memberAvatars: string[];
 }
 
@@ -467,7 +468,13 @@ export function MessagesContent({ userId }: MessagesContentProps) {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
-                      <p className="font-medium text-white">{group.name}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-white">{group.name}</p>
+                        <span className="text-xs text-white/40 flex items-center gap-1">
+                          <Users className="w-3 h-3" />
+                          {group.memberCount}
+                        </span>
+                      </div>
                       {group.lastMessage && (
                         <span className="text-xs text-white/30">
                           {formatDistanceToNow(new Date(group.lastMessage.createdAt), {

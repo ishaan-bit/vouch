@@ -211,6 +211,13 @@ export async function computePaymentObligations(
           amount: item.amount,
         },
       });
+
+      // Increment rulesCompletedCount for the user who followed the rule (toUserId)
+      await prisma.profileStats.upsert({
+        where: { userId: toUserId },
+        create: { userId: toUserId, rulesCompletedCount: 1 },
+        update: { rulesCompletedCount: { increment: 1 } },
+      });
     }
   }
 

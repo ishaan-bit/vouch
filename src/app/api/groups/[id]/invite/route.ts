@@ -92,6 +92,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     // Add members and create notifications in a transaction
+    console.log(`[INVITE] Adding ${validUserIds.length} members to group ${groupId}`);
+    
     await prisma.$transaction(async (tx) => {
       // Create memberships for new users
       await tx.groupMembership.createMany({
@@ -102,16 +104,26 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         })),
       });
 
-      // Create notifications for invited users
+      // Create notifications for invited users with CTA deep-link data
       await tx.notification.createMany({
         data: validUserIds.map((userId) => ({
           userId,
-          type: "GROUP_INVITE" as const,
-          title: "You've been added to a pact!",
-          message: `${session.user.name || "Someone"} added you to "${group.name}". Add your rule to join the game.`,
-          data: { groupId, creatorId: session.user.id, groupName: group.name },
+          type: "PACT_MEMBER_ADDED" as const,
+          title: "You've been added to a pact! 🎯",
+          message: `${session.user.name || "Someone"} added you to "${group.name}". Tap to add your rule and join.`,
+          data: { 
+            groupId, 
+            groupSlug: group.slug,
+            creatorId: session.user.id, 
+            creatorName: session.user.name,
+            groupName: group.name,
+            action: "ADD_RULE",
+            deepLink: `/groups/${groupId}`,
+          },
         })),
       });
+      
+      console.log(`[INVITE] Created PACT_MEMBER_ADDED notifications for ${validUserIds.length} users`);
     });
 
     return NextResponse.json(

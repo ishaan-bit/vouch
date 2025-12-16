@@ -42,9 +42,10 @@ export function RuleCard({
   isApproving = false,
 }: RuleCardProps) {
   const isCreator = rule.creator.id === currentUserId;
-  const hasApproved = rule.approvals.some((a) => a.userId === currentUserId);
+  const hasApproved = rule.approvals.some((a) => a.approverId === currentUserId);
   const approvalsNeeded = totalMembers - 1;
   const approvalsCount = rule.approvals.length;
+  const isApproved = approvalsCount >= approvalsNeeded || rule.approved;
 
   const formatAmount = (paise: number) => {
     return `₹${(paise / 100).toLocaleString("en-IN")}`;
@@ -89,7 +90,7 @@ export function RuleCard({
           </div>
 
           {/* Approval Status */}
-          {isPlanning && (
+          {isPlanning && !isApproved && (
             <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-800/50">
               <div className="text-xs text-slate-500">
                 {approvalsCount}/{approvalsNeeded} approvals
@@ -118,6 +119,14 @@ export function RuleCard({
                 </span>
               )}
               {isCreator && <span className="text-xs text-slate-500">Your rule</span>}
+            </div>
+          )}
+          {isPlanning && isApproved && (
+            <div className="flex items-center justify-end mt-4 pt-3 border-t border-slate-800/50">
+              <span className="flex items-center gap-1.5 text-xs text-emerald-400">
+                <CheckCircle2 className="h-4 w-4" />
+                Fully approved
+              </span>
             </div>
           )}
         </div>

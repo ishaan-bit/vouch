@@ -142,11 +142,33 @@ export function GroupDetailContent({ group, currentUserId, pendingJoinRequests =
     (m) => !group.rules.some((r) => r.creator.id === m.userId)
   );
 
-  // Check if group can start (≥2 members, everyone has a rule)
+  // Calculate rule approval status
+  const approvalsNeeded = group.memberships.length - 1; // All members except rule creator must approve
+  const approvedRules = group.rules.filter((rule) => {
+    return rule.approved || rule.approvals.length >= approvalsNeeded;
+  });
+  const allRulesApproved = group.rules.length > 0 && approvedRules.length === group.rules.length;
+
+  // Check if group can start (≥2 members, everyone has a rule, all rules approved)
   const canStartChallenge = 
     group.status === "PLANNING" &&
     group.memberships.length >= 2 &&
-    membersWithoutRules.length === 0;
+    membersWithoutRules.length === 0 &&
+    allRulesApproved;
+
+  // Get reason why challenge can't start
+  const getStartBlockerMessage = () => {
+    if (group.memberships.length < 2) return "Need at least 2 members";
+    if (membersWithoutRules.length > 0) {
+      const names = membersWithoutRules.map((m) => m.user.name?.split(" ")[0] || "Someone").join(", ");
+      return `Waiting for ${names} to add their rule`;
+    }
+    if (!allRulesApproved) {
+      const unapproved = group.rules.length - approvedRules.length;
+      return `${unapproved} rule${unapproved > 1 ? "s" : ""} still need approval`;
+    }
+    return "";
+  };
 
   // Calculate total stake in the pot
   const totalStake = group.rules.reduce((sum, r) => sum + r.stakeAmount, 0);
@@ -826,11 +848,7 @@ export function GroupDetailContent({ group, currentUserId, pendingJoinRequests =
             </button>
             {!canStartChallenge && (
               <p className="text-center text-xs text-[var(--accent-gold)] mt-2">
-                {group.memberships.length < 2
-                  ? "Need at least 2 members to start"
-                  : membersWithoutRules.length > 0
-                  ? "All members must add a rule"
-                  : ""}
+                {getStartBlockerMessage()}
               </p>
             )}
           </div>

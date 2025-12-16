@@ -7,9 +7,10 @@ import { GroupNonMemberView } from "@/components/groups/group-non-member-view";
 
 interface GroupPageProps {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ from?: string; inviter?: string; error?: string }>;
 }
 
-export default async function GroupPage({ params }: GroupPageProps) {
+export default async function GroupPage({ params, searchParams }: GroupPageProps) {
   const session = await auth();
   
   if (!session?.user) {
@@ -17,6 +18,7 @@ export default async function GroupPage({ params }: GroupPageProps) {
   }
 
   const { id } = await params;
+  const { from, inviter, error } = await searchParams;
 
   // Fetch the full group data
   const group = await prisma.group.findUnique({
@@ -193,6 +195,9 @@ export default async function GroupPage({ params }: GroupPageProps) {
 
   // Check if user already has a pending request
   const existingRequest = group.joinRequests[0];
+  
+  // Check if coming from invite link
+  const fromInvite = from === "invite";
 
   return (
     <AppShell>
@@ -223,6 +228,9 @@ export default async function GroupPage({ params }: GroupPageProps) {
         currentUserId={session.user.id}
         canJoin={canJoin}
         existingRequest={existingRequest}
+        fromInvite={fromInvite}
+        inviterName={inviter}
+        joinError={error}
       />
     </AppShell>
   );

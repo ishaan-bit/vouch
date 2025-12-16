@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
@@ -69,6 +69,9 @@ interface GroupNonMemberViewProps {
   currentUserId: string;
   canJoin: boolean;
   existingRequest?: ExistingRequest | null;
+  fromInvite?: boolean;
+  inviterName?: string;
+  joinError?: string;
 }
 
 export function GroupNonMemberView({
@@ -76,12 +79,33 @@ export function GroupNonMemberView({
   currentUserId,
   canJoin,
   existingRequest,
+  fromInvite = false,
+  inviterName,
+  joinError,
 }: GroupNonMemberViewProps) {
   const router = useRouter();
   const [joinDialogOpen, setJoinDialogOpen] = useState(false);
   const [ruleTitle, setRuleTitle] = useState("");
   const [ruleDescription, setRuleDescription] = useState("");
   const [stakeAmount, setStakeAmount] = useState("");
+
+  // Auto-open join dialog when coming from invite link
+  useEffect(() => {
+    if (fromInvite && canJoin && !existingRequest) {
+      // Small delay to let the page render first
+      const timer = setTimeout(() => {
+        setJoinDialogOpen(true);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [fromInvite, canJoin, existingRequest]);
+
+  // Show error toast if there's a join error
+  useEffect(() => {
+    if (joinError === "closed") {
+      toast.error("This pact is no longer accepting new members");
+    }
+  }, [joinError]);
 
   // Calculate stake range from existing rules
   const stakes = group.rules.map((r) => r.stakeAmount);
@@ -224,6 +248,19 @@ export function GroupNonMemberView({
 
       {/* Content */}
       <main className="relative z-10 -mt-20 mx-auto max-w-lg px-4 pb-8">
+        {/* Invite Banner */}
+        {fromInvite && inviterName && (
+          <div className="mb-4 p-4 rounded-2xl bg-gradient-to-r from-[var(--accent-violet)]/20 to-[var(--accent-magenta)]/20 border border-[var(--accent-violet)]/30 text-center">
+            <div className="flex items-center justify-center gap-2 mb-1">
+              <UserPlus className="w-4 h-4 text-[var(--accent-lilac)]" />
+              <span className="text-sm font-medium text-white">You&apos;ve been invited!</span>
+            </div>
+            <p className="text-xs text-white/60">
+              {inviterName} invited you to join this pact
+            </p>
+          </div>
+        )}
+
         {/* Main Info Card */}
         <div className="qd-card p-6 mb-6">
           <h1 className="text-2xl font-bold text-white text-center mb-2">{group.name}</h1>

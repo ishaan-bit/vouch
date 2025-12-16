@@ -27,7 +27,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       where: { id: groupId },
       include: {
         memberships: {
-          where: { userId },
+          include: {
+            user: {
+              select: { name: true },
+            },
+          },
         },
       },
     });
@@ -37,10 +41,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     // Check if user is a member
-    const membership = group.memberships[0];
+    const membership = group.memberships.find(m => m.userId === userId);
     if (!membership) {
       return NextResponse.json({ error: "You are not a member of this pact" }, { status: 400 });
     }
+    
+    const leavingUserName = membership.user.name || "A member";
 
     // Creators cannot leave - they must delete the pact
     if (group.createdByUserId === userId) {
@@ -77,6 +83,25 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         },
       }),
     ]);
+
+    // Notify remaining members that someone left
+    const remainingMembers = group.memberships.filter(m => m.userId !== userId);
+    if (remainingMembers.length > 0) {
+      await prisma.notification.createMany({
+        data: remainingMembers.map(m => ({
+          userId: m.userId,
+          type: "MEMBER_LEFT",
+          title: "Member Left Pact",
+          message: `${leavingUserName} has left the pact "${group.name}"`,
+          data: {
+            groupId,
+            groupName: group.name,
+            leftUserId: userId,
+            leftUserName: leavingUserName,
+          },
+        })),
+      });
+    }
 
     console.log(`User ${userId} left pact ${groupId}`);
 
