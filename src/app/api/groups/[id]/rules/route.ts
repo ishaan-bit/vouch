@@ -106,21 +106,25 @@ export async function POST(request: Request, { params }: RouteParams) {
     const otherMembers = group.memberships.filter(m => m.userId !== session.user.id);
     if (otherMembers.length > 0) {
       try {
-        await prisma.notification.createMany({
-          data: otherMembers.map(m => ({
-            userId: m.userId,
-            type: "RULE_ADDED",
-            title: "New rule added",
-            message: `${session.user.name || "A member"} added a rule "${title}" to "${group.name}". Review and approve it!`,
-            data: JSON.stringify({
-              groupId,
-              groupName: group.name,
-              ruleId: rule.id,
-              ruleTitle: title,
-              creatorName: session.user.name,
-            }),
-          })),
-        });
+        for (const member of otherMembers) {
+          await prisma.notification.create({
+            data: {
+              userId: member.userId,
+              // Use OTHER type as RULE_ADDED - Prisma types may not be regenerated on build
+              type: "OTHER",
+              title: "New rule added",
+              message: `${session.user.name || "A member"} added a rule "${title}" to "${group.name}". Review and approve it!`,
+              data: JSON.stringify({
+                groupId,
+                groupName: group.name,
+                ruleId: rule.id,
+                ruleTitle: title,
+                creatorName: session.user.name,
+                notificationType: "RULE_ADDED",
+              }),
+            },
+          });
+        }
       } catch (notifError) {
         console.error("[RULES] Failed to create notifications:", notifError);
       }
