@@ -10,11 +10,16 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    console.log(`[NOTIFICATIONS] Fetching notifications for user ${session.user.id}`);
+
     const notifications = await prisma.notification.findMany({
       where: { userId: session.user.id },
       orderBy: { createdAt: "desc" },
       take: 50,
     });
+
+    console.log(`[NOTIFICATIONS] Found ${notifications.length} notifications`);
+    console.log(`[NOTIFICATIONS] Types:`, notifications.map(n => n.type).join(', '));
 
     // Enhance notifications with current status for actionable items
     const enhancedNotifications = await Promise.all(
