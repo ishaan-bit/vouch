@@ -67,6 +67,11 @@ export async function POST(request: Request, { params }: RouteParams) {
     // Check group is in planning status
     const group = await prisma.group.findUnique({
       where: { id: groupId },
+      include: {
+        memberships: {
+          select: { userId: true },
+        },
+      },
     });
 
     if (group?.status !== "PLANNING") {
@@ -96,6 +101,30 @@ export async function POST(request: Request, { params }: RouteParams) {
         approvals: true,
       },
     });
+
+    // Notify other members about the new rule
+    const otherMembers = group.memberships.filter(m => m.userId !== session.user.id);
+    if (otherMembers.length > 0) {
+      try {
+        await prisma.notification.createMany({
+          data: otherMembers.map(m => ({
+            userId: m.userId,
+            type: "RULE_ADDED",
+            title: "New rule added",
+            message: `${session.user.name || "A member"} added a rule "${title}" to "${group.name}". Review and approve it!`,
+            data: JSON.stringify({
+              groupId,
+              groupName: group.name,
+              ruleId: rule.id,
+              ruleTitle: title,
+              creatorName: session.user.name,
+            }),
+          })),
+        });
+      } catch (notifError) {
+        console.error("[RULES] Failed to create notifications:", notifError);
+      }
+    }
 
     // Increment rulesCreatedCount for the user
     await prisma.profileStats.upsert({
