@@ -2,7 +2,7 @@
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Coins, Check, CheckCircle2, Loader2 } from "lucide-react";
+import { Coins, Check, CheckCircle2, Loader2, X } from "lucide-react";
 
 interface User {
   id: string;
@@ -30,7 +30,9 @@ interface RuleCardProps {
   totalMembers: number;
   isPlanning: boolean;
   onApprove?: (ruleId: string) => void;
+  onReject?: (ruleId: string) => void;
   isApproving?: boolean;
+  isRejecting?: boolean;
 }
 
 export function RuleCard({
@@ -39,7 +41,9 @@ export function RuleCard({
   totalMembers,
   isPlanning,
   onApprove,
+  onReject,
   isApproving = false,
+  isRejecting = false,
 }: RuleCardProps) {
   const isCreator = rule.creator.id === currentUserId;
   const hasApproved = rule.approvals.some((a) => a.approverId === currentUserId);
@@ -95,22 +99,44 @@ export function RuleCard({
               <div className="text-xs text-slate-500">
                 {approvalsCount}/{approvalsNeeded} approvals
               </div>
-              {!isCreator && !hasApproved && onApprove && (
-                <Button
-                  size="sm"
-                  onClick={() => onApprove(rule.id)}
-                  disabled={isApproving}
-                  className="h-8 px-4 rounded-full bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border-0"
-                >
-                  {isApproving ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <>
-                      <Check className="h-4 w-4 mr-1.5" />
-                      Approve
-                    </>
+              {!isCreator && !hasApproved && (
+                <div className="flex items-center gap-2">
+                  {onApprove && (
+                    <Button
+                      size="sm"
+                      onClick={() => onApprove(rule.id)}
+                      disabled={isApproving || isRejecting}
+                      className="h-8 px-4 rounded-full bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border-0"
+                    >
+                      {isApproving ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          <Check className="h-4 w-4 mr-1.5" />
+                          Approve
+                        </>
+                      )}
+                    </Button>
                   )}
-                </Button>
+                  {onReject && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => onReject(rule.id)}
+                      disabled={isApproving || isRejecting}
+                      className="h-8 px-4 rounded-full bg-red-500/20 text-red-400 hover:bg-red-500/30 border-0"
+                    >
+                      {isRejecting ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          <X className="h-4 w-4 mr-1.5" />
+                          Reject
+                        </>
+                      )}
+                    </Button>
+                  )}
+                </div>
               )}
               {hasApproved && (
                 <span className="flex items-center gap-1.5 text-xs text-emerald-400">

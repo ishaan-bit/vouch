@@ -19,6 +19,7 @@ import {
   ArrowRight,
   IndianRupee,
   Sparkles,
+  ScrollText,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
@@ -51,6 +52,7 @@ const notificationIcons: Record<string, React.ElementType> = {
   PAYMENT_DUE: DollarSign,
   GROUP_STARTED: Users,
   NEW_MESSAGE: Bell,
+  RULE_ADDED: ScrollText,
   OTHER: Bell,
 };
 
@@ -99,6 +101,48 @@ export function ActivityContent({ userId }: ActivityContentProps) {
     },
   });
 
+  // Approve rule mutation
+  const approveRuleMutation = useMutation({
+    mutationFn: async ({ groupId, ruleId }: { groupId: string; ruleId: string }) => {
+      const res = await fetch(`/api/groups/${groupId}/rules/${ruleId}/approve`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to approve rule");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      toast.success("Rule approved!");
+    },
+    onError: (err: Error) => {
+      toast.error(err.message);
+    },
+  });
+
+  // Reject rule mutation
+  const rejectRuleMutation = useMutation({
+    mutationFn: async ({ groupId, ruleId }: { groupId: string; ruleId: string }) => {
+      const res = await fetch(`/api/groups/${groupId}/rules/${ruleId}/reject`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to reject rule");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      toast.success("Rule rejected");
+    },
+    onError: (err: Error) => {
+      toast.error(err.message);
+    },
+  });
+
   // Group notifications by time period
   const groupedNotifications = {
     today: [] as Notification[],
@@ -123,9 +167,16 @@ export function ActivityContent({ userId }: ActivityContentProps) {
   });
 
   const renderNotification = (notification: Notification) => {
-    const Icon = notificationIcons[notification.type] || Bell;
+    // Get the effective type (for OTHER notifications with custom notificationType in data)
+    const effectiveType = notification.type === "OTHER" && notification.data?.notificationType 
+      ? String(notification.data.notificationType)
+      : notification.type;
+    const Icon = notificationIcons[effectiveType] || notificationIcons[notification.type] || Bell;
     const isFriendRequest = notification.type === "FRIEND_REQUEST";
     const isJoinRequest = notification.type === "JOIN_REQUEST";
+    const isRuleAdded = effectiveType === "RULE_ADDED";
+    const groupId = notification.data?.groupId ? String(notification.data.groupId) : null;
+    const ruleId = notification.data?.ruleId ? String(notification.data.ruleId) : null;
 
     return (
       <div
@@ -205,9 +256,9 @@ export function ActivityContent({ userId }: ActivityContentProps) {
             )}
 
             {/* Join request link */}
-            {isJoinRequest && notification.data && (notification.data.groupId as string) && (
+            {isJoinRequest && groupId && (
               <Link 
-                href={`/groups/${notification.data.groupId}`}
+                href={`/groups/${groupId}`}
                 className="mt-3 inline-flex items-center gap-1.5 text-sm text-[var(--accent-lilac)] hover:text-[var(--accent-violet)] transition-colors"
                 onClick={(e) => e.stopPropagation()}
               >
@@ -217,9 +268,9 @@ export function ActivityContent({ userId }: ActivityContentProps) {
             )}
 
             {/* Group invite link - deep link to pact for invited members */}
-            {notification.type === "GROUP_INVITE" && notification.data && (notification.data.groupId as string) && (
+            {notification.type === "GROUP_INVITE" && groupId && (
               <Link 
-                href={`/groups/${notification.data.groupId}`}
+                href={`/groups/${groupId}`}
                 className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-[var(--accent-gold)] hover:text-[var(--accent-gold)]/80 transition-colors"
                 onClick={(e) => e.stopPropagation()}
               >
@@ -229,15 +280,46 @@ export function ActivityContent({ userId }: ActivityContentProps) {
             )}
 
             {/* Pact member added - CTA to add rule and join */}
-            {notification.type === "PACT_MEMBER_ADDED" && notification.data && (notification.data.groupId as string) && (
+            {notification.type === "PACT_MEMBER_ADDED" && groupId && (
               <Link 
-                href={`/groups/${notification.data.groupId}`}
+                href={`/groups/${groupId}`}
                 className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-gradient-to-r from-[var(--accent-gold)]/20 to-[var(--accent-gold)]/10 text-[var(--accent-gold)] border border-[var(--accent-gold)]/30 hover:from-[var(--accent-gold)]/30 hover:to-[var(--accent-gold)]/20 transition-all"
                 onClick={(e) => e.stopPropagation()}
               >
                 Join by adding your rule
                 <ArrowRight className="h-4 w-4" />
               </Link>
+            )}
+
+            {/* New rule added - approve/reject actions */}
+            {isRuleAdded && groupId && ruleId && (
+              <div className="mt-3 flex gap-2" onClick={(e) => e.stopPropagation()}>
+                <Button
+                  size="sm"
+                  onClick={() => approveRuleMutation.mutate({ 
+                    groupId, 
+                    ruleId 
+                  })}
+                  disabled={approveRuleMutation.isPending || rejectRuleMutation.isPending}
+                  className="bg-[var(--accent-teal)]/20 text-[var(--accent-teal)] border border-[var(--accent-teal)]/30 hover:bg-[var(--accent-teal)]/30"
+                >
+                  <Check className="h-4 w-4 mr-1" />
+                  Approve
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => rejectRuleMutation.mutate({ 
+                    groupId, 
+                    ruleId 
+                  })}
+                  disabled={approveRuleMutation.isPending || rejectRuleMutation.isPending}
+                  className="bg-[var(--accent-magenta)]/20 text-[var(--accent-magenta)] border border-[var(--accent-magenta)]/30 hover:bg-[var(--accent-magenta)]/30"
+                >
+                  <X className="h-4 w-4 mr-1" />
+                  Reject
+                </Button>
+              </div>
             )}
           </div>
           {!notification.isRead && (

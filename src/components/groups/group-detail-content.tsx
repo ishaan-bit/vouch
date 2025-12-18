@@ -234,6 +234,28 @@ export function GroupDetailContent({ group, currentUserId, pendingJoinRequests =
     },
   });
 
+  // Reject rule mutation
+  const rejectRuleMutation = useMutation({
+    mutationFn: async (ruleId: string) => {
+      const res = await fetch(`/api/groups/${group.id}/rules/${ruleId}/reject`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to reject rule");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["group", group.id] });
+      router.refresh();
+      toast.success("Rule rejected and removed");
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+
   // Approve join request mutation
   const approveJoinRequestMutation = useMutation({
     mutationFn: async (requestId: string) => {
@@ -736,20 +758,36 @@ export function GroupDetailContent({ group, currentUserId, pendingJoinRequests =
                                 {approvalsCount}/{approvalsNeeded} approvals
                               </span>
                               {!isCreator && !hasApproved && (
-                                <button
-                                  onClick={() => approveRuleMutation.mutate(rule.id)}
-                                  disabled={approveRuleMutation.isPending}
-                                  className="px-4 py-1.5 rounded-lg bg-[var(--accent-teal)]/15 text-[var(--accent-teal)] text-sm font-medium hover:bg-[var(--accent-teal)]/25 transition-colors flex items-center gap-1.5"
-                                >
-                                  {approveRuleMutation.isPending ? (
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                  ) : (
-                                    <>
-                                      <Check className="w-4 h-4" />
-                                      Approve
-                                    </>
-                                  )}
-                                </button>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => approveRuleMutation.mutate(rule.id)}
+                                    disabled={approveRuleMutation.isPending || rejectRuleMutation.isPending}
+                                    className="px-4 py-1.5 rounded-lg bg-[var(--accent-teal)]/15 text-[var(--accent-teal)] text-sm font-medium hover:bg-[var(--accent-teal)]/25 transition-colors flex items-center gap-1.5"
+                                  >
+                                    {approveRuleMutation.isPending ? (
+                                      <Loader2 className="w-4 h-4 animate-spin" />
+                                    ) : (
+                                      <>
+                                        <Check className="w-4 h-4" />
+                                        Approve
+                                      </>
+                                    )}
+                                  </button>
+                                  <button
+                                    onClick={() => rejectRuleMutation.mutate(rule.id)}
+                                    disabled={approveRuleMutation.isPending || rejectRuleMutation.isPending}
+                                    className="px-4 py-1.5 rounded-lg bg-[var(--accent-magenta)]/15 text-[var(--accent-magenta)] text-sm font-medium hover:bg-[var(--accent-magenta)]/25 transition-colors flex items-center gap-1.5"
+                                  >
+                                    {rejectRuleMutation.isPending ? (
+                                      <Loader2 className="w-4 h-4 animate-spin" />
+                                    ) : (
+                                      <>
+                                        <X className="w-4 h-4" />
+                                        Reject
+                                      </>
+                                    )}
+                                  </button>
+                                </div>
                               )}
                               {hasApproved && (
                                 <span className="flex items-center gap-1.5 text-xs text-[var(--accent-teal)]">
