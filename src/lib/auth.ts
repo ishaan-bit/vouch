@@ -73,14 +73,20 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.id = user.id;
       }
       
-      // Only fetch username if we have a user id and it's not the initial sign-in
+      // Validate user still exists in DB (handles cleared DB scenario)
       if (token.id && token.sub) {
         try {
           const dbUser = await prisma.user.findUnique({
             where: { id: token.id as string },
-            select: { username: true },
+            select: { id: true, username: true },
           });
-          if (dbUser) {
+          
+          // If user was deleted from DB, mark token as invalid
+          if (!dbUser) {
+            console.log("[AUTH] User not found in DB, invalidating session");
+            token.invalidated = true;
+            token.id = undefined;
+          } else {
             token.username = dbUser.username;
           }
         } catch (error) {
@@ -98,6 +104,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       return token;
     },
     async session({ session, token }) {
+      // If token was invalidated (user deleted), return session without user
+      if (token.invalidated || !token.id) {
+        session.user = undefined as unknown as typeof session.user;
+        return session;
+      }
+      
       if (token && session.user) {
         session.user.id = token.id as string;
         session.user.username = token.username as string | null;
