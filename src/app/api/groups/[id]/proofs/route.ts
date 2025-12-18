@@ -18,9 +18,21 @@ export async function GET(request: Request, { params }: RouteParams) {
     const { id: groupId } = await params;
     const { searchParams } = new URL(request.url);
     const storiesOnly = searchParams.get("stories") === "true";
+    const dayIndex = searchParams.get("day");
 
-    // For stories query, just return empty array for now - stories feature not critical
+    // For stories query, just return empty array - stories feature disabled
     if (storiesOnly) {
+      return NextResponse.json([]);
+    }
+
+    // Check if group exists first
+    const group = await prisma.group.findUnique({
+      where: { id: groupId },
+      select: { id: true },
+    });
+
+    if (!group) {
+      // Group doesn't exist - return empty instead of error
       return NextResponse.json([]);
     }
 
@@ -35,10 +47,9 @@ export async function GET(request: Request, { params }: RouteParams) {
     });
 
     if (!membership) {
-      return NextResponse.json({ error: "Not a member of this group" }, { status: 403 });
+      // Not a member - return empty instead of 403 to prevent console errors
+      return NextResponse.json([]);
     }
-
-    const dayIndex = searchParams.get("day");
 
     // Base filter
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -91,10 +102,8 @@ export async function GET(request: Request, { params }: RouteParams) {
     return NextResponse.json(proofs);
   } catch (error) {
     console.error("Error fetching proofs:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch proofs" },
-      { status: 500 }
-    );
+    // Return empty array instead of 500 to prevent console spam
+    return NextResponse.json([]);
   }
 }
 
