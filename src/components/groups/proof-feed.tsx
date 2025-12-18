@@ -144,16 +144,21 @@ export function ProofFeed({ groupId, dayIndex: initialDayIndex, members, current
   const [selectedMediaType, setSelectedMediaType] = useState<string | "all">("all");
   const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
 
-  const { data: proofs, isLoading } = useQuery<Proof[]>({
+  const { data: proofs, isLoading, error } = useQuery<Proof[]>({
     queryKey: ["proofs", groupId, selectedDay],
     queryFn: async () => {
       const url = selectedDay === "all" 
         ? `/api/groups/${groupId}/proofs`
         : `/api/groups/${groupId}/proofs?day=${selectedDay}`;
+      console.log("[ProofFeed] Fetching proofs from:", url);
       const res = await fetch(url);
       if (!res.ok) throw new Error("Failed to fetch proofs");
-      return res.json();
+      const data = await res.json();
+      console.log("[ProofFeed] Received proofs:", data?.length || 0);
+      return data;
     },
+    refetchOnMount: true,
+    staleTime: 0, // Always consider data stale to ensure fresh fetches
   });
 
   // Filter and sort proofs
@@ -313,12 +318,31 @@ export function ProofFeed({ groupId, dayIndex: initialDayIndex, members, current
   // Generate day options
   const dayOptions = Array.from({ length: durationDays }, (_, i) => i + 1);
 
+  // Debug log
+  useEffect(() => {
+    console.log("[ProofFeed] State:", { 
+      proofs: proofs?.length || 0, 
+      isLoading, 
+      error: error?.message,
+      selectedDay,
+      groupId 
+    });
+  }, [proofs, isLoading, error, selectedDay, groupId]);
+
   if (isLoading) {
     return (
       <div className="space-y-3">
         {[1, 2, 3].map((i) => (
           <div key={i} className="animate-pulse rounded-2xl bg-[var(--dusk-2)]/60 h-24" />
         ))}
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-8 rounded-2xl text-center bg-red-500/10 border border-red-500/20">
+        <p className="text-red-400">Error loading proofs: {error.message}</p>
       </div>
     );
   }

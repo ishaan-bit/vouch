@@ -272,8 +272,8 @@ export function AddProofDialog({
       return res.json();
     },
     onSuccess: () => {
-      // Invalidate queries to refresh UI
-      queryClient.invalidateQueries({ queryKey: ["proofs", groupId] });
+      // Invalidate queries to refresh UI - use broader invalidation to catch all day filters
+      queryClient.invalidateQueries({ queryKey: ["proofs"] });
       queryClient.invalidateQueries({ queryKey: ["group", groupId] });
       queryClient.invalidateQueries({ queryKey: ["my-groups"] });
       queryClient.invalidateQueries({ queryKey: ["groups"] });
