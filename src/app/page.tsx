@@ -16,7 +16,8 @@ export default function LandingPage() {
   }, []);
 
   useEffect(() => {
-    if (session) {
+    // Only redirect if session has a valid user (not invalidated)
+    if (session?.user?.id) {
       router.push("/home");
     }
   }, [session, router]);
@@ -30,7 +31,7 @@ export default function LandingPage() {
    * If user is already authenticated, go straight to /home
    */
   const handleBeginPact = () => {
-    if (session) {
+    if (session?.user?.id) {
       // Already logged in - go to home/dashboard
       router.push("/home");
     } else {
@@ -47,7 +48,7 @@ export default function LandingPage() {
     );
   }
 
-  if (session) {
+  if (session?.user?.id) {
     return null;
   }
 
