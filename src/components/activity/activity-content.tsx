@@ -47,6 +47,7 @@ const notificationIcons: Record<string, React.ElementType> = {
   JOIN_REQUEST: Users,
   MEMBER_LEFT: UserMinus,
   PROOF_REACTION: Camera,
+  PROOF_UPLOADED: Camera,
   CALL_REMINDER: Video,
   PAYMENT_RECEIVED: DollarSign,
   PAYMENT_DUE: DollarSign,
@@ -320,6 +321,18 @@ export function ActivityContent({ userId }: ActivityContentProps) {
                   Reject
                 </Button>
               </div>
+            )}
+
+            {/* Proof uploaded - link to group proofs tab */}
+            {notification.type === "PROOF_UPLOADED" && groupId && (
+              <Link 
+                href={`/groups/${groupId}?tab=proofs`}
+                className="mt-3 inline-flex items-center gap-1.5 text-sm text-[var(--accent-teal)] hover:text-[var(--accent-teal)]/80 transition-colors"
+                onClick={(e) => e.stopPropagation()}
+              >
+                View proof
+                <ArrowRight className="h-4 w-4" />
+              </Link>
             )}
           </div>
           {!notification.isRead && (

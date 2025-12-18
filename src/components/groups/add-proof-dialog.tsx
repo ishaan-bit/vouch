@@ -276,6 +276,7 @@ export function AddProofDialog({
       queryClient.invalidateQueries({ queryKey: ["proofs", groupId] });
       queryClient.invalidateQueries({ queryKey: ["group", groupId] });
       queryClient.invalidateQueries({ queryKey: ["my-groups"] });
+      queryClient.invalidateQueries({ queryKey: ["groups"] });
       toast.success("Proof posted!");
       resetForm();
       onOpenChange(false);

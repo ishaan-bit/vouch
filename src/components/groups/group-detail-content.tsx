@@ -12,6 +12,7 @@ import { AddProofDialog } from "./add-proof-dialog";
 import { StoriesRing } from "./stories-viewer";
 import { ActiveChallengeHub } from "./active-challenge-hub";
 import { PactDeletion } from "./pact-deletion";
+import { ProofFeed } from "./proof-feed";
 import { toast } from "sonner";
 import { PactRing } from "@/components/ui/pact-ring";
 import { cn } from "@/lib/utils";
@@ -44,6 +45,11 @@ import {
   ImageIcon,
   LogOut,
   Share2,
+  Filter,
+  SortAsc,
+  FileText,
+  Mic,
+  Link as LinkIcon,
 } from "lucide-react";
 
 // Types
@@ -125,6 +131,11 @@ export function GroupDetailContent({ group, currentUserId, pendingJoinRequests =
   const queryClient = useQueryClient();
   const [addRuleOpen, setAddRuleOpen] = useState(false);
   const [addProofOpen, setAddProofOpen] = useState(false);
+  
+  // Tab state - default to proofs for active groups, rules for planning
+  const defaultTab = group.status === "ACTIVE" ? "proofs" : "rules";
+  const urlTab = searchParams?.get("tab");
+  const [activeTab, setActiveTab] = useState(urlTab || defaultTab);
 
   // Auto-open proof dialog if openProof query param is present
   useEffect(() => {
@@ -135,9 +146,28 @@ export function GroupDetailContent({ group, currentUserId, pendingJoinRequests =
     }
   }, [searchParams, group.id, group.status, router]);
 
+  // Update tab from URL params
+  useEffect(() => {
+    if (urlTab && ["proofs", "rules", "members"].includes(urlTab)) {
+      setActiveTab(urlTab);
+    }
+  }, [urlTab]);
+
   // Check if current user has created a rule
   const currentUserRule = group.rules.find((r) => r.creator.id === currentUserId);
   const hasContributedRule = !!currentUserRule;
+
+  // Calculate current day of the challenge
+  const getCurrentDay = () => {
+    if (!group.startDate || group.status !== "ACTIVE") return 1;
+    const start = new Date(group.startDate);
+    const now = new Date();
+    const elapsedMs = now.getTime() - start.getTime();
+    return Math.min(
+      Math.max(1, Math.ceil(elapsedMs / (24 * 60 * 60 * 1000))),
+      group.durationDays
+    );
+  };
 
   // Calculate who hasn't contributed a rule
   const membersWithoutRules = group.memberships.filter(
@@ -631,12 +661,26 @@ export function GroupDetailContent({ group, currentUserId, pendingJoinRequests =
         )}
 
         {/* Tabbed Content */}
-        <Tabs defaultValue="rules" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className={cn(
             "w-full h-11 p-1 rounded-xl mb-4",
             "bg-[var(--dusk-2)]/60 backdrop-blur-xl",
             "border border-white/[0.06]"
           )}>
+            {group.status === "ACTIVE" && (
+              <TabsTrigger 
+                value="proofs"
+                className={cn(
+                  "flex-1 h-full rounded-lg text-sm font-medium transition-all duration-300",
+                  "data-[state=inactive]:text-white/40 data-[state=inactive]:hover:text-white/60",
+                  "data-[state=active]:bg-gradient-to-r data-[state=active]:from-[var(--accent-violet)] data-[state=active]:to-[var(--accent-magenta)]",
+                  "data-[state=active]:text-white data-[state=active]:shadow-md"
+                )}
+              >
+                <Camera className="w-4 h-4 mr-1.5" />
+                Proofs
+              </TabsTrigger>
+            )}
             <TabsTrigger 
               value="rules"
               className={cn(
@@ -662,6 +706,20 @@ export function GroupDetailContent({ group, currentUserId, pendingJoinRequests =
               Members
             </TabsTrigger>
           </TabsList>
+          
+          {/* Proofs Tab - only for ACTIVE groups */}
+          {group.status === "ACTIVE" && (
+            <TabsContent value="proofs" className="mt-0">
+              <ProofFeed 
+                groupId={group.id}
+                dayIndex={getCurrentDay()}
+                members={group.memberships}
+                currentUserId={currentUserId}
+                durationDays={group.durationDays}
+                startDate={group.startDate}
+              />
+            </TabsContent>
+          )}
           
           {/* Rules Tab */}
           <TabsContent value="rules" className="mt-0">
