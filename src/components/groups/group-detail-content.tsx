@@ -131,11 +131,17 @@ export function GroupDetailContent({ group, currentUserId, pendingJoinRequests =
   const queryClient = useQueryClient();
   const [addRuleOpen, setAddRuleOpen] = useState(false);
   const [addProofOpen, setAddProofOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   
   // Tab state - default to proofs for active groups, rules for planning
   const defaultTab = group.status === "ACTIVE" ? "proofs" : "rules";
   const urlTab = searchParams?.get("tab");
   const [activeTab, setActiveTab] = useState(urlTab || defaultTab);
+
+  // Prevent hydration mismatch
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Auto-open proof dialog if openProof query param is present
   useEffect(() => {
@@ -998,7 +1004,7 @@ export function GroupDetailContent({ group, currentUserId, pendingJoinRequests =
                 </div>
               </div>
               
-              {group.endDate && (
+              {group.endDate && mounted && (
                 <div className="flex items-center gap-2 text-sm text-white/40 mb-4">
                   <Calendar className="h-4 w-4" />
                   <span>Ends {new Date(group.endDate).toLocaleDateString()}</span>

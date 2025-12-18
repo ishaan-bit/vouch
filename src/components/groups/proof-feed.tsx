@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -28,6 +28,23 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+
+// Helper to format date only on client to avoid hydration mismatch
+function formatDate(dateStr: string) {
+  try {
+    return new Date(dateStr).toLocaleDateString();
+  } catch {
+    return "";
+  }
+}
+
+function formatTime(dateStr: string) {
+  try {
+    return new Date(dateStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  } catch {
+    return "";
+  }
+}
 
 interface GroupMember {
   user: {
@@ -104,6 +121,7 @@ const reactionEmojis = [
 
 export function ProofFeed({ groupId, dayIndex: initialDayIndex, members, currentUserId, durationDays = 7, startDate }: ProofFeedProps) {
   const queryClient = useQueryClient();
+  const [mounted, setMounted] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerMedia, setViewerMedia] = useState<{
     url: string;
@@ -111,12 +129,17 @@ export function ProofFeed({ groupId, dayIndex: initialDayIndex, members, current
     caption?: string | null;
     uploaderName?: string;
   } | null>(null);
+
+  // Prevent hydration mismatch by only rendering dates after mount
+  useEffect(() => {
+    setMounted(true);
+  }, []);
   const [deleteProofId, setDeleteProofId] = useState<string | null>(null);
   const [expandedComments, setExpandedComments] = useState<Set<string>>(new Set());
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
   
-  // Filter states
-  const [selectedDay, setSelectedDay] = useState<number | "all">(initialDayIndex);
+  // Filter states - default to "all" so users see all proofs initially
+  const [selectedDay, setSelectedDay] = useState<number | "all">("all");
   const [selectedUser, setSelectedUser] = useState<string | "all">("all");
   const [selectedMediaType, setSelectedMediaType] = useState<string | "all">("all");
   const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
@@ -421,7 +444,7 @@ export function ProofFeed({ groupId, dayIndex: initialDayIndex, members, current
                       </Badge>
                     </div>
                     <p className="text-xs text-white/40">
-                      {new Date(proof.createdAt).toLocaleDateString()} at {new Date(proof.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {mounted ? `${formatDate(proof.createdAt)} at ${formatTime(proof.createdAt)}` : "Loading..."}
                     </p>
                   </div>
                   <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white/[0.05] text-white/50">
@@ -566,7 +589,7 @@ export function ProofFeed({ groupId, dayIndex: initialDayIndex, members, current
                                     {comment.author.name?.split(" ")[0]}
                                   </span>
                                   <span className="text-[10px] text-white/30">
-                                    {new Date(comment.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    {mounted ? formatTime(comment.createdAt) : ""}
                                   </span>
                                 </div>
                                 <p className="text-sm text-white/60">{comment.content}</p>
