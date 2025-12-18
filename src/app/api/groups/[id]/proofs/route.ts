@@ -44,11 +44,15 @@ export async function GET(request: Request, { params }: RouteParams) {
 
     // For stories, filter to only active (non-expired) stories
     if (storiesOnly) {
-      whereClause.isStory = true;
-      // Only show non-expired stories
-      whereClause.OR = [
-        { expiresAt: null },
-        { expiresAt: { gt: new Date() } }
+      // Use AND to properly combine isStory with OR condition
+      whereClause.AND = [
+        { isStory: true },
+        {
+          OR: [
+            { expiresAt: null },
+            { expiresAt: { gt: new Date() } }
+          ]
+        }
       ];
     }
     // For regular proofs (non-stories mode), we show all proofs
