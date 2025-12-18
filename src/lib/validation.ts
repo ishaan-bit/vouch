@@ -54,7 +54,6 @@ export const createGroupSchema = z.object({
 });
 
 export const inviteMembersSchema = z.object({
-  groupId: z.string().cuid(),
   userIds: z.array(z.string().cuid()).min(1, "Invite at least one member"),
 });
 

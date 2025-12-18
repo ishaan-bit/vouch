@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaLibSql } from "@prisma/adapter-libsql";
+// Prisma client regenerated with DeletionStatus enum, GroupDeletionVote model
 
 // Determine database URL and config
 const getDatabaseConfig = () => {

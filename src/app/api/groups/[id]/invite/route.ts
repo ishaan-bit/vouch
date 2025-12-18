@@ -17,11 +17,26 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     const { id: groupId } = await params;
     const body = await request.json();
+    
+    // Log incoming payload for debugging
+    console.log("[INVITE] Received payload:", JSON.stringify(body));
+    
     const result = inviteMembersSchema.safeParse(body);
 
     if (!result.success) {
+      const zodErrors = result.error.flatten();
+      const issues = Object.entries(zodErrors.fieldErrors).map(([field, messages]) => ({
+        path: field,
+        message: (messages as string[])?.[0] || "Invalid value",
+        received: typeof body[field as keyof typeof body],
+      }));
+      console.error("[INVITE] Validation failed:", issues);
       return NextResponse.json(
-        { error: result.error.flatten().fieldErrors.userIds?.[0] || "Invalid input" },
+        { 
+          error: "INVALID_INPUT", 
+          message: issues[0]?.message || "Invalid input",
+          issues,
+        },
         { status: 400 }
       );
     }

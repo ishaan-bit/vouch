@@ -53,6 +53,9 @@ model User {
   proofReactions ProofReaction[]
   proofComments ProofComment[] @relation("ProofCommentAuthor")
 
+  // Pact deletion votes
+  deletionVotes GroupDeletionVote[]
+
   // Chat
   sentMessages ChatMessage[]
   dmThreadsA   DmThread[]    @relation("DmUserA")
@@ -160,6 +163,15 @@ enum GroupStatus {
   COMPLETED
 }
 
+enum DeletionStatus {
+  NONE
+  PENDING
+  APPROVED
+  DECLINED
+  EXPIRED
+  DELETED
+}
+
 enum GroupVisibility {
   PUBLIC
   FRIENDS_ONLY
@@ -181,6 +193,12 @@ model Group {
   createdByUserId String
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
+  
+  // Deletion with unanimous consent
+  deletionStatus      DeletionStatus @default(NONE)
+  deletionRequestedBy String?
+  deletionRequestedAt DateTime?
+  deletionExpiresAt   DateTime?
 
   creator     User              @relation("GroupCreator", fields: [createdByUserId], references: [id])
   memberships GroupMembership[]
@@ -191,6 +209,7 @@ model Group {
   paymentObligations PaymentObligation[]
   joinRequests JoinRequest[]
   causeLosses CauseLoss[]
+  deletionVotes GroupDeletionVote[]
 }
 
 enum MemberRole {
@@ -205,6 +224,25 @@ model GroupMembership {
   role     MemberRole @default(MEMBER)
   isReady  Boolean    @default(false) // ready to start the group
   joinedAt DateTime   @default(now())
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+}
+
+// Deletion votes for unanimous consent
+enum DeletionVote {
+  APPROVE
+  DECLINE
+}
+
+model GroupDeletionVote {
+  id        String       @id @default(cuid())
+  groupId   String
+  userId    String
+  vote      DeletionVote
+  createdAt DateTime     @default(now())
 
   group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -481,6 +519,7 @@ enum NotificationType {
   JOIN_REJECTED
   MEMBER_LEFT
   PROOF_REACTION
+  PROOF_COMMENT
   PROOF_UPLOADED
   RULE_APPROVED
   RULE_FULLY_APPROVED
@@ -492,6 +531,12 @@ enum NotificationType {
   CYCLE_ENDED
   CAUSE_LOSS_PROMPT
   NEW_MESSAGE
+  // Pact deletion
+  PACT_DELETION_REQUESTED
+  PACT_DELETION_VOTE
+  PACT_DELETION_APPROVED
+  PACT_DELETION_DECLINED
+  PACT_DELETION_CANCELLED
   OTHER
 }
 

@@ -11,6 +11,7 @@ import { AddRuleDialog } from "./add-rule-dialog";
 import { AddProofDialog } from "./add-proof-dialog";
 import { StoriesRing } from "./stories-viewer";
 import { ActiveChallengeHub } from "./active-challenge-hub";
+import { PactDeletion } from "./pact-deletion";
 import { toast } from "sonner";
 import { PactRing } from "@/components/ui/pact-ring";
 import { cn } from "@/lib/utils";
@@ -837,6 +838,16 @@ export function GroupDetailContent({ group, currentUserId, pendingJoinRequests =
             )}
           </TabsContent>
         </Tabs>
+
+        {/* Pact Deletion Section */}
+        <div className="mt-6">
+          <PactDeletion
+            groupId={group.id}
+            groupName={group.name}
+            isCreator={group.createdByUserId === currentUserId}
+            currentUserId={currentUserId}
+          />
+        </div>
 
         {/* Bottom Actions */}
         {group.status === "PLANNING" && group.createdByUserId === currentUserId && (

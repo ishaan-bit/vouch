@@ -7,3 +7,4 @@ export { GroupDetailContent } from "./group-detail-content";
 export { GroupNonMemberView } from "./group-non-member-view";
 export { ReviewCall } from "./review-call";
 export { ActiveChallengeHub } from "./active-challenge-hub";
+export { PactDeletion } from "./pact-deletion";
