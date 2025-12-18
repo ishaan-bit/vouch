@@ -11,6 +11,8 @@ interface RouteParams {
 export async function GET(request: Request, { params }: RouteParams) {
   try {
     const session = await auth();
+    console.log("[GET proofs] Session user:", session?.user?.id);
+    
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -19,6 +21,8 @@ export async function GET(request: Request, { params }: RouteParams) {
     const { searchParams } = new URL(request.url);
     const storiesOnly = searchParams.get("stories") === "true";
     const dayIndex = searchParams.get("day");
+    
+    console.log("[GET proofs] GroupId:", groupId, "DayIndex:", dayIndex, "StoriesOnly:", storiesOnly);
 
     // For stories query, just return empty array - stories feature disabled
     if (storiesOnly) {
@@ -57,6 +61,8 @@ export async function GET(request: Request, { params }: RouteParams) {
     if (dayIndex) {
       whereClause.dayIndex = parseInt(dayIndex);
     }
+    
+    console.log("[GET proofs] Where clause:", JSON.stringify(whereClause));
 
     const proofs = await prisma.proof.findMany({
       where: whereClause,
@@ -99,9 +105,10 @@ export async function GET(request: Request, { params }: RouteParams) {
       },
     });
 
+    console.log("[GET proofs] Found proofs:", proofs.length);
     return NextResponse.json(proofs);
   } catch (error) {
-    console.error("Error fetching proofs:", error);
+    console.error("[GET proofs] Error:", error);
     // Return empty array instead of 500 to prevent console spam
     return NextResponse.json([]);
   }
@@ -111,12 +118,15 @@ export async function GET(request: Request, { params }: RouteParams) {
 export async function POST(request: Request, { params }: RouteParams) {
   try {
     const session = await auth();
+    console.log("[POST proofs] Session user:", session?.user?.id);
+    
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { id: groupId } = await params;
     const body = await request.json();
+    console.log("[POST proofs] Request body:", JSON.stringify(body));
 
     // Validate
     const result = createProofSchema.safeParse({ ...body, groupId });
@@ -125,6 +135,7 @@ export async function POST(request: Request, { params }: RouteParams) {
       const errorMessages = Object.entries(fieldErrors)
         .map(([field, errors]) => `${field}: ${errors?.join(", ")}`)
         .join("; ");
+      console.log("[POST proofs] Validation failed:", errorMessages);
       return NextResponse.json(
         { error: errorMessages || "Invalid input" },
         { status: 400 }
@@ -142,6 +153,7 @@ export async function POST(request: Request, { params }: RouteParams) {
     });
 
     if (!membership) {
+      console.log("[POST proofs] Not a member of group:", groupId);
       return NextResponse.json({ error: "Not a member" }, { status: 403 });
     }
 
@@ -156,6 +168,7 @@ export async function POST(request: Request, { params }: RouteParams) {
     });
 
     if (group?.status !== "ACTIVE") {
+      console.log("[POST proofs] Group not active:", group?.status);
       return NextResponse.json(
         { error: "Group is not active" },
         { status: 400 }
@@ -164,6 +177,8 @@ export async function POST(request: Request, { params }: RouteParams) {
 
     const { dayIndex, caption, mediaType, mediaUrl, textContent, ruleIds, isPublic, isStory } =
       result.data;
+
+    console.log("[POST proofs] Creating proof with ruleIds:", ruleIds);
 
     // Calculate expiresAt for stories (24h from now)
     const expiresAt = isStory ? new Date(Date.now() + 24 * 60 * 60 * 1000) : null;
@@ -202,6 +217,8 @@ export async function POST(request: Request, { params }: RouteParams) {
         },
       },
     });
+
+    console.log("[POST proofs] Created proof:", proof.id);
 
     // Notify other group members about the new proof (P1 fix H)
     if (group) {
