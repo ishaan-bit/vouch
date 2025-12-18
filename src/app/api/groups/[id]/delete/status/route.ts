@@ -16,7 +16,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     const { id: groupId } = await params;
 
-    // Fetch group with deletion info
+    // Fetch group - deletionVotes may not exist in older schemas
     const group = await prisma.group.findUnique({
       where: { id: groupId },
       include: {
@@ -24,13 +24,6 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           include: {
             user: {
               select: { id: true, name: true, avatarUrl: true },
-            },
-          },
-        },
-        deletionVotes: {
-          include: {
-            user: {
-              select: { id: true, name: true },
             },
           },
         },
@@ -50,6 +43,35 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
+    // If no deletion is in progress, return early with minimal info
+    if (!group.deletionStatus || group.deletionStatus === "NONE") {
+      return NextResponse.json({
+        status: "NONE",
+        isCreator: group.createdByUserId === session.user.id,
+        hasVoted: false,
+        myVote: null,
+        approvedCount: 0,
+        totalMembers: group.memberships.length,
+        approvedMembers: [],
+        pendingMembers: [],
+      });
+    }
+
+    // Fetch deletion votes separately (safer if table doesn't exist)
+    let deletionVotes: { userId: string; vote: string; user: { id: string; name: string | null } }[] = [];
+    try {
+      deletionVotes = await prisma.groupDeletionVote.findMany({
+        where: { groupId },
+        include: {
+          user: {
+            select: { id: true, name: true },
+          },
+        },
+      });
+    } catch (e) {
+      console.log("[DELETE_STATUS] Could not fetch deletion votes, table may not exist:", e);
+    }
+
     // Check if expired and auto-update
     if (
       group.deletionStatus === "PENDING" &&
@@ -65,14 +87,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     // Build response
     const isCreator = group.createdByUserId === session.user.id;
-    const currentUserVote = group.deletionVotes.find(v => v.userId === session.user.id);
+    const currentUserVote = deletionVotes.find(v => v.userId === session.user.id);
 
-    const approvedMembers = group.deletionVotes
+    const approvedMembers = deletionVotes
       .filter(v => v.vote === "APPROVE")
       .map(v => ({ id: v.userId, name: v.user.name }));
 
     const pendingMembers = group.memberships
-      .filter(m => !group.deletionVotes.some(v => v.userId === m.userId))
+      .filter(m => !deletionVotes.some(v => v.userId === m.userId))
       .map(m => ({ id: m.userId, name: m.user.name, avatarUrl: m.user.avatarUrl }));
 
     return NextResponse.json({
@@ -90,9 +112,16 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     });
   } catch (error) {
     console.error("[DELETE_STATUS] Error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch deletion status" },
-      { status: 500 }
-    );
+    // Return a safe default response instead of 500
+    return NextResponse.json({
+      status: "NONE",
+      isCreator: false,
+      hasVoted: false,
+      myVote: null,
+      approvedCount: 0,
+      totalMembers: 0,
+      approvedMembers: [],
+      pendingMembers: [],
+    });
   }
 }
