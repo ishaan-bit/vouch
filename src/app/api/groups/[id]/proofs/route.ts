@@ -36,7 +36,8 @@ export async function GET(request: Request, { params }: RouteParams) {
     const storiesOnly = searchParams.get("stories") === "true";
 
     // Base filter
-    const whereClause: Record<string, unknown> = { groupId };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const whereClause: any = { groupId };
     if (dayIndex) {
       whereClause.dayIndex = parseInt(dayIndex);
     }
@@ -44,17 +45,14 @@ export async function GET(request: Request, { params }: RouteParams) {
     // For stories, filter to only active (non-expired) stories
     if (storiesOnly) {
       whereClause.isStory = true;
+      // Only show non-expired stories
       whereClause.OR = [
         { expiresAt: null },
         { expiresAt: { gt: new Date() } }
       ];
-    } else {
-      // For regular proofs, exclude expired stories
-      whereClause.OR = [
-        { isStory: false },
-        { isStory: true, expiresAt: { gt: new Date() } }
-      ];
     }
+    // For regular proofs (non-stories mode), we show all proofs
+    // The frontend handles filtering expired stories visually
 
     const proofs = await prisma.proof.findMany({
       where: whereClause,
