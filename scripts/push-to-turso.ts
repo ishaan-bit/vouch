@@ -135,10 +135,15 @@ const statements: string[] = [
     "status" TEXT NOT NULL DEFAULT 'PLANNING',
     "visibility" TEXT NOT NULL DEFAULT 'PUBLIC',
     "isOpenToJoin" INTEGER NOT NULL DEFAULT 1,
+    "deletionStatus" TEXT NOT NULL DEFAULT 'NONE',
+    "deletionRequestedBy" TEXT,
+    "deletionRequestedAt" DATETIME,
+    "deletionExpiresAt" DATETIME,
     "createdByUserId" TEXT NOT NULL,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "Group_createdByUserId_fkey" FOREIGN KEY ("createdByUserId") REFERENCES "User" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+    CONSTRAINT "Group_createdByUserId_fkey" FOREIGN KEY ("createdByUserId") REFERENCES "User" ("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT "Group_deletionRequestedBy_fkey" FOREIGN KEY ("deletionRequestedBy") REFERENCES "User" ("id") ON DELETE SET NULL ON UPDATE CASCADE
   )`,
 
   // GroupMembership table - drop and recreate
@@ -154,6 +159,19 @@ const statements: string[] = [
     CONSTRAINT "GroupMembership_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
   )`,
   `CREATE UNIQUE INDEX IF NOT EXISTS "GroupMembership_userId_groupId_key" ON "GroupMembership"("userId", "groupId")`,
+
+  // GroupDeletionVote table
+  `DROP TABLE IF EXISTS "GroupDeletionVote"`,
+  `CREATE TABLE "GroupDeletionVote" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "groupId" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "vote" TEXT NOT NULL,
+    "votedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "GroupDeletionVote_groupId_fkey" FOREIGN KEY ("groupId") REFERENCES "Group" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "GroupDeletionVote_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "GroupDeletionVote_groupId_userId_key" ON "GroupDeletionVote"("groupId", "userId")`,
 
   // GroupInvite table
   `CREATE TABLE IF NOT EXISTS "GroupInvite" (
